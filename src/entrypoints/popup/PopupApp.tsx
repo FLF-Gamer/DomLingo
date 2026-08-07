@@ -20,8 +20,8 @@ export function PopupApp() {
       <section className="status-card" aria-live="polite">
         <span className="status-dot" aria-hidden="true" />
         <div>
-          <strong>工程初始化完成</strong>
-          <p>翻译功能将在后续里程碑中启用。</p>
+          <strong>模型配置已开放</strong>
+          <p>请先在设置页测试并保存你的模型服务。</p>
         </div>
       </section>
 

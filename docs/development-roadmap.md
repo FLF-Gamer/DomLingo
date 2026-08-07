@@ -3,9 +3,9 @@
 | 项目 | 当前状态 |
 | --- | --- |
 | 更新日期 | 2026-08-07 |
-| 当前阶段 | M0 本地工程实现和自动化验证已完成，等待 Chrome 手动加载验收 |
-| 当前里程碑 | M0：仓库治理与工程初始化（收尾中） |
-| 当前分支 | `codex/feat/project-foundation` |
+| 当前阶段 | M0 已通过 PR #1 合并，M1 Provider 与权限基础开发中 |
+| 当前里程碑 | M1：设置、权限与 Provider（进行中） |
+| 当前分支 | `codex/feat/provider-settings` |
 | 第一交付渠道 | GitHub Releases 开发者版本 |
 | 稳定交付渠道 | Chrome Web Store 公开版本 |
 | 开源协议 | Apache-2.0 |
@@ -37,7 +37,7 @@
 | GitHub Alpha | 待开始 | 依赖核心翻译闭环 |
 | Chrome Web Store | 待开始 | 依赖 GitHub Beta 稳定性验证 |
 
-当前总体判断：设计基线和 M0 工程基线已经建立，不再需要补充架构级决策。`pnpm check` 和构建产物冒烟测试已在本地通过；剩余的 M0 验收项是在 Chrome 中手动加载 Popup/Options。当前不连接远程仓库、不推送，工作文件仍未暂存和提交。
+当前总体判断：设计基线和 M0 工程基线已经建立，PR #1 已通过 GitHub Actions 并合并到 `main`。M1 正在实现 Provider 预设、Endpoint 安全校验、精确域名权限、连接测试和设置存储；Chrome 手动加载验收将使用 M1 可配置版本一起完成。
 
 ## 3. 已确认决策记录
 
@@ -116,7 +116,7 @@ Chrome Manifest 的数值版本与 Git 标签的预发布名称在工程初始�
 
 ### M0：仓库治理与工程初始化
 
-状态：`进行中`
+状态：`已完成`
 
 任务：
 
@@ -158,7 +158,22 @@ Chrome Manifest 的数值版本与 Git 标签的预发布名称在工程初始�
 
 ### M1：设置、权限与 Provider
 
-状态：`待开始`
+状态：`进行中`
+
+当前已完成：
+
+- 创建 M1 特性分支 `codex/feat/provider-settings`；
+- 添加六类 Provider 预设与 OpenAI-compatible 公共类型；
+- 添加 HTTPS/loopback HTTP Endpoint 安全校验与精确权限 pattern；
+- 添加运行时域名授权、Chrome Sync 普通设置和可信会话密钥存储；
+- 添加后台连接测试、稳定错误码和 Options 配置表单；
+- 添加 Provider、Endpoint、错误映射和消息守卫单元测试。
+
+当前限制：
+
+- API Key 设备级加密持久化尚未完成，当前只保存在可信 `storage.session`；
+- 已授权域名列表与撤销 UI 尚未完成；
+- 需要使用真实远程服务和 Ollama fixture 完成集成验证。
 
 任务：
 
