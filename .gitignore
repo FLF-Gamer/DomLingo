@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# WXT and build output
+.wxt/
+.output/
+dist/
+
+# Tests
+coverage/
+playwright-report/
+test-results/
+
+# Local browser profiles
+.chrome-data/
+.web-ext-profile/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+
+# Logs
+*.log
+pnpm-debug.log*

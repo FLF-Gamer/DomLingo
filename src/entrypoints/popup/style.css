@@ -1,0 +1,138 @@
+:root {
+  color: #172033;
+  background: #f5f7fb;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 360px;
+}
+
+button {
+  font: inherit;
+}
+
+.popup-shell {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.popup-header h1,
+.popup-header p,
+.status-card p {
+  margin: 0;
+}
+
+.popup-header h1 {
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.popup-header p,
+.status-card p {
+  color: #667085;
+  font-size: 12px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 12px;
+  color: #fff;
+  background: #4f46e5;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.status-card {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dfe4ee;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.status-card strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 13px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px #dcfce7;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+}
+
+.primary-button,
+.secondary-button,
+.settings-button {
+  min-height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.primary-button {
+  border: 0;
+  color: #fff;
+  background: #4f46e5;
+  font-weight: 600;
+}
+
+.secondary-button {
+  border: 1px solid #d0d5dd;
+  color: #344054;
+  background: #fff;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.settings-button {
+  border: 0;
+  color: #4338ca;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-button:focus-visible,
+.primary-button:focus-visible,
+.secondary-button:focus-visible {
+  outline: 3px solid #c7d2fe;
+  outline-offset: 2px;
+}

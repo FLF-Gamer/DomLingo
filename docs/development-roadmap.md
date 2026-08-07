@@ -1,0 +1,358 @@
+# DomLingo 项目状态与开发路线图
+
+| 项目 | 当前状态 |
+| --- | --- |
+| 更新日期 | 2026-08-07 |
+| 当前阶段 | M0 本地工程实现和自动化验证已完成，等待 Chrome 手动加载验收 |
+| 当前里程碑 | M0：仓库治理与工程初始化（收尾中） |
+| 当前分支 | `codex/feat/project-foundation` |
+| 第一交付渠道 | GitHub Releases 开发者版本 |
+| 稳定交付渠道 | Chrome Web Store 公开版本 |
+| 开源协议 | Apache-2.0 |
+
+## 1. 状态说明
+
+- `已完成`：输出已经存在并通过当前阶段检查；
+- `进行中`：当前正在实施；
+- `待开始`：依赖已清楚，但还没有开始；
+- `阻塞`：缺少用户决定、权限或外部条件；
+- `延期`：明确不进入当前版本。
+
+## 2. 当前进度
+
+| 工作流 | 状态 | 说明 |
+| --- | --- | --- |
+| 产品定位 | 已完成 | 无账号、BYOK、纯网页正文翻译 |
+| 产品名称 | 已完成 | DomLingo（原页译） |
+| 产品需求文档 | 已完成 | PRD 0.2 |
+| 技术设计文档 | 已完成 | TDD 0.2 |
+| 技术栈 | 已完成 | TypeScript、React、WXT、Manifest V3 |
+| 内容使用边界 | 已完成 | 合法打开公开网页、用户主动翻译、浏览器内显示 |
+| 发布策略 | 已完成 | GitHub 开源/Releases 优先，商店稳定版随后 |
+| 开源许可证选择 | 已完成 | Apache-2.0 |
+| LICENSE 与版权主体 | 已完成 | Apache-2.0、NOTICE 与 2026 DomLingo Contributors |
+| GitHub Flow | 已完成 | 特性分支、贡献规范、PR/Issue 模板和 CI 工作流均已建立 |
+| 工程脚手架 | 已完成 | WXT 0.21、React、TypeScript、MV3 入口和质量工具已通过本地检查 |
+| 核心翻译闭环 | 待开始 | 尚未实现 |
+| GitHub Alpha | 待开始 | 依赖核心翻译闭环 |
+| Chrome Web Store | 待开始 | 依赖 GitHub Beta 稳定性验证 |
+
+当前总体判断：设计基线和 M0 工程基线已经建立，不再需要补充架构级决策。`pnpm check` 和构建产物冒烟测试已在本地通过；剩余的 M0 验收项是在 Chrome 中手动加载 Popup/Options。当前不连接远程仓库、不推送，工作文件仍未暂存和提交。
+
+## 3. 已确认决策记录
+
+| 日期 | 决策 | 结果 |
+| --- | --- | --- |
+| 2026-08-07 | 产品名称 | DomLingo（原页译） |
+| 2026-08-07 | 账号体系 | 无注册、无登录、无订阅 |
+| 2026-08-07 | 模型接入 | 用户自带 OpenAI-compatible API，支持 Ollama |
+| 2026-08-07 | 前端技术 | TypeScript + React |
+| 2026-08-07 | 扩展构建 | WXT + Chrome Manifest V3 |
+| 2026-08-07 | 翻译范围 | 只翻译识别出的正文区域及其白名单文本属性 |
+| 2026-08-07 | 动态页面 | MVP 支持新增正文、可视区域优先和 SPA 根节点变化 |
+| 2026-08-07 | 错误处理 | 按节点失败和恢复，不进行整页回滚 |
+| 2026-08-07 | 配置能力 | Provider 预设、自定义 Prompt、缓存、导入导出和安全同步 |
+| 2026-08-07 | 内容边界 | 用户合法打开公开网页、主动点击、译文仅在自己的浏览器显示 |
+| 2026-08-07 | 禁止能力 | 不绕过登录、订阅、付费墙、DRM，不抓取或发布完整译文 |
+| 2026-08-07 | 开源协议 | Apache-2.0 |
+| 2026-08-07 | 发布顺序 | GitHub 开源 → GitHub Releases → 商店 Unlisted → 商店 Public |
+
+## 4. 发布通道
+
+### 4.1 GitHub 源代码
+
+用途：
+
+- 项目主页和源代码；
+- 开发文档和架构文档；
+- Issues、Pull Requests 和安全报告；
+- 构建与测试的唯一可信来源。
+
+`main` 分支应始终保持可构建。功能开发使用短生命周期分支和 Pull Request，即使由单人开发，也通过检查后合并。
+
+### 4.2 GitHub Releases
+
+用途：开发者和早期测试用户。
+
+每个公开 Release 至少包含：
+
+```text
+domlingo-chrome-unpacked-<version>.zip
+SHA256SUMS
+CHANGELOG.md
+```
+
+Release 页面必须说明：
+
+- 这是开发者版本；
+- 需要在 `chrome://extensions` 开启开发者模式并加载已解压目录；
+- GitHub 版本不会自动更新；
+- 网页正文将发送到用户配置的模型服务；
+- 已知限制和配置迁移方式。
+
+### 4.3 Chrome Web Store
+
+用途：普通用户的正式安装和自动更新。
+
+发布顺序：
+
+1. Unlisted：通过链接给测试用户安装；
+2. Public：审核和测试稳定后公开搜索与安装。
+
+商店版发布不改变项目开源属性。商店描述应链接 GitHub 源代码、隐私政策和问题反馈入口。
+
+## 5. 版本路线
+
+| 版本阶段 | 渠道 | 定位 |
+| --- | --- | --- |
+| `0.1.x-alpha` | GitHub Releases | 核心闭环验证，接口和存储可能变化 |
+| `0.2.x-beta` | GitHub Releases | 面向早期用户，重点修复网页兼容性 |
+| `0.9.x` | GitHub + 商店 Unlisted | 商店审核、权限、隐私和迁移验证 |
+| `1.0.0` | GitHub + 商店 Public | 第一版稳定公开版本 |
+
+Chrome Manifest 的数值版本与 Git 标签的预发布名称在工程初始化时建立确定映射，避免商店版本格式限制影响 Git 语义版本。
+
+## 6. 开发里程碑
+
+### M0：仓库治理与工程初始化
+
+状态：`进行中`
+
+任务：
+
+- 添加 Apache-2.0 `LICENSE`；
+- 确定版权主体并添加 `NOTICE`；
+- 添加 `CONTRIBUTING.md`、PR/Issue 模板、`SECURITY.md`、`CHANGELOG.md`；
+- 初始化 pnpm、当前 Node LTS、WXT、React、TypeScript；
+- 配置严格 TypeScript、ESLint、Prettier、Vitest 和 Playwright；
+- 创建 Popup、Options、Background、Content Script 空入口；
+- 生成最小 Manifest V3；
+- 配置 GitHub Actions：类型检查、Lint、单元测试和构建；
+- 添加构建产物和本地加载说明。
+
+已完成：
+
+- 创建空的本地初始提交，并让 `main` 与特性分支共享同一 PR 基线；
+- 创建本地特性分支 `codex/feat/project-foundation`；
+- 添加 GitHub Flow、分支命名、提交和合并规范；
+- 添加 Pull Request 模板；
+- 添加 Bug 和 Feature Issue 表单。
+- 添加 Apache-2.0 `LICENSE`、`NOTICE`、`SECURITY.md` 和 `CHANGELOG.md`；
+- 初始化 pnpm、WXT 0.21、React、TypeScript 与 Chrome Manifest V3；
+- 创建 Popup、Options、Background 和按需注入 Content Script 入口；
+- 配置严格 TypeScript、ESLint、Prettier、Vitest、Playwright 和 GitHub Actions；
+- 使用 `pnpm check` 通过格式、Lint、类型、单元测试、构建和产物冒烟测试；
+- 验证构建 Manifest 仅包含 `activeTab`、`scripting`、`storage` 与可选域名权限。
+
+待完成：
+
+- 在 Chrome 开发者模式中手动加载 `.output/chrome-mv3/`；
+- 确认 Popup 可打开，并能从 Popup 进入 Options 页面。
+
+退出标准：
+
+- 新开发者根据 README 可以完成安装、构建和加载；
+- CI 在干净环境中通过；
+- 构建包不包含远程代码和不必要权限；
+- 空扩展可以在 Chrome 中加载并打开 Popup/Options。
+
+### M1：设置、权限与 Provider
+
+状态：`待开始`
+
+任务：
+
+- 设置页基础 UI；
+- DeepSeek、OpenRouter、OpenAI、硅基流动、Ollama 和自定义预设；
+- API endpoint 校验；
+- 精确 API 域名运行时授权；
+- 远程 HTTPS 与本机 loopback HTTP 规则；
+- OpenAI-compatible Provider；
+- 测试连接和错误映射；
+- API Key 设备级加密持久化；
+- 明文只进入可信 `chrome.storage.session`；
+- 普通设置 Chrome Sync。
+
+退出标准：
+
+- 至少一个远程兼容服务和 Ollama 模拟服务连接通过；
+- 权限拒绝、401、404、429、5xx 和超时都有稳定错误码；
+- Content Script、日志和普通导出中看不到 API Key；
+- 浏览器重启后可以安全恢复已保存的加密配置。
+
+### M2：静态正文翻译闭环
+
+状态：`待开始`
+
+任务：
+
+- 用户主动点击翻译；
+- 正文根节点识别；
+- 文本节点与白名单属性采集；
+- 语义分组和批处理；
+- 默认 Prompt 和结构化 JSON 验证；
+- 可视正文翻译写回；
+- Popup/页面浮层进度；
+- 停止翻译；
+- 按节点失败保护和精确恢复原文；
+- FIX-01、FIX-02、FIX-03、FIX-06、FIX-07 自动化测试。
+
+退出标准：
+
+- 静态文章、富文本和文档站 fixture 达到 PRD 验收标准；
+- DOM 结构、class、style、href、src 和事件保持不变；
+- 无用户点击时不会采集或发送正文；
+- 无效模型响应不会破坏页面；
+- 恢复后节点值与翻译前一致。
+
+### M3：动态页面、缓存与可靠性
+
+状态：`待开始`
+
+任务：
+
+- IntersectionObserver 可视区域优先；
+- MutationObserver 新内容检测、去抖和去重；
+- SPA 路由和正文根节点变化；
+- 并发控制、超时、取消和指数退避；
+- IndexedDB 翻译缓存；
+- 缓存译文设备级加密；
+- 容量上限、LRU 和清除操作；
+- FIX-04、FIX-05 动态页面测试。
+
+退出标准：
+
+- 动态新增正文只翻译一次；
+- 扩展自己的 DOM 写回不会造成翻译循环；
+- 用户停止后迟到响应不再写入；
+- 缓存命中不调用模型；
+- 缓存损坏可以退化为无缓存翻译。
+
+### M4：迁移、安全与 GitHub Alpha
+
+状态：`待开始`
+
+任务：
+
+- 自定义 Prompt；
+- 配置导入导出；
+- API Key 口令加密导出和同步；
+- 首次翻译数据发送说明与确认；
+- 隐私政策、版权使用边界和安全说明；
+- GitHub 安装文档；
+- 构建 unpacked ZIP 和 SHA-256 校验值；
+- 发布 `0.1.x-alpha`。
+
+退出标准：
+
+- Release 在干净 Chrome Profile 中可以按文档安装；
+- Release 构建可由 Git 标签重复生成；
+- 不包含密钥、测试凭据或本机路径；
+- 已知问题和不支持页面明确列出；
+- 没有数据泄露、页面破坏或无法恢复原文的已知阻断问题。
+
+### M5：GitHub Beta
+
+状态：`待开始`
+
+任务：
+
+- 修复 Alpha 期间的兼容性问题；
+- 完成 PRD 中真实网站冒烟测试；
+- 检查长网页性能和内存；
+- 验证多个 Provider；
+- 完善贡献指南、Issue 模板和安全报告流程；
+- 发布 `0.2.x-beta`。
+
+退出标准：
+
+- 全部 P0 自动化测试通过；
+- 真实网站测试没有阻断级问题；
+- 至少完成一次旧版本配置迁移；
+- Release 安装、升级和回退说明完整；
+- Beta 期间没有未解决的高危安全问题。
+
+### M6：Chrome Web Store Unlisted
+
+状态：`待开始`
+
+任务：
+
+- 准备公开隐私政策 URL；
+- 完成商店单一用途、权限和数据流申报；
+- 准备名称、描述、图标、截图和支持入口；
+- 提供审核测试说明；
+- 上传 `0.9.x` Unlisted；
+- 验证商店自动更新；
+- 验证 GitHub 开发版导出、商店版导入。
+
+退出标准：
+
+- 通过商店审核或完成所有审核整改；
+- 测试用户可以通过链接安装和更新；
+- 商店披露、扩展 UI、隐私政策和实际行为一致；
+- 权限请求没有超出单一翻译用途。
+
+### M7：Chrome Web Store Public 1.0
+
+状态：`待开始`
+
+任务：
+
+- 处理 Unlisted 测试反馈；
+- 完成最终安全和隐私审查；
+- 发布 GitHub `1.0.0` Release；
+- 将商店可见性切换为 Public；
+- 发布安装、升级、迁移和反馈说明。
+
+退出标准：
+
+- 普通用户可以从商店一键安装并自动更新；
+- GitHub 源码标签与商店构建可追溯对应；
+- 没有阻断级功能、隐私、安全或版权边界问题；
+- 项目进入常规维护节奏。
+
+## 7. 关键依赖顺序
+
+```text
+M0 工程初始化
+  ↓
+M1 Provider 与密钥安全
+  ↓
+M2 静态翻译闭环
+  ↓
+M3 动态页面与缓存
+  ↓
+M4 GitHub Alpha
+  ↓
+M5 GitHub Beta
+  ↓
+M6 商店 Unlisted
+  ↓
+M7 商店 Public 1.0
+```
+
+Provider 和密钥安全必须先于真实网页翻译，避免早期版本形成不安全的存储格式。GitHub Beta 必须先于商店提交，用真实兼容性反馈减少商店反复审核。
+
+## 8. 开发工作约定
+
+- 每项功能先对应 PRD 编号和测试，再进入实现；
+- 每次合并保持 `main` 可构建、可测试；
+- 不提交 API Key、真实网页正文、用户缓存或浏览器 Profile；
+- 所有模型请求测试默认使用本地模拟服务；
+- 真实模型测试只使用公开、非敏感样本文本；
+- 修改权限、数据流、密钥或缓存格式时同步更新 PRD、TDD 和隐私说明；
+- 完成一个里程碑后更新本文件状态和 CHANGELOG；
+- GitHub Release 只从已通过 CI 的标签生成。
+
+## 9. 近期下一步
+
+按顺序执行：
+
+1. 确定 Apache-2.0 版权主体名称；
+2. 完成 M0 仓库治理文件；
+3. 初始化 WXT + React + TypeScript 工程；
+4. 建立 CI 和空扩展加载验证；
+5. 进入 M1 Provider、权限和密钥安全实现。
+
+除“版权主体名称”外，目前没有阻塞开发的产品决策。

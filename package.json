@@ -1,0 +1,54 @@
+{
+  "name": "domlingo-extension",
+  "version": "0.1.0-alpha.0",
+  "description": "Use your own LLM API to translate English webpage content into Simplified Chinese.",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "packageManager": "pnpm@11.16.0",
+  "scripts": {
+    "build": "wxt build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
+    "dev": "wxt",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,html}\" \"tests/**/*.{ts,tsx}\" \"*.{json,js,mjs,ts,yml,yaml}\" \".github/**/*.{md,yml,yaml}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,html}\" \"tests/**/*.{ts,tsx}\" \"*.{json,js,mjs,ts,yml,yaml}\" \".github/**/*.{md,yml,yaml}\"",
+    "lint": "eslint src tests *.config.ts wxt.config.ts --max-warnings 0",
+    "postinstall": "wxt prepare",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "zip": "wxt zip"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
+    "@types/chrome": "^0.2.5",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitest/coverage-v8": "^4.1.10",
+    "@wxt-dev/module-react": "^1.2.2",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.9.0",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10",
+    "wxt": "^0.21.3"
+  }
+}

@@ -1,0 +1,11 @@
+.output/
+.wxt/
+coverage/
+node_modules/
+playwright-report/
+test-results/
+pnpm-lock.yaml
+docs/
+README.md
+CONTRIBUTING.md
+CHANGELOG.md

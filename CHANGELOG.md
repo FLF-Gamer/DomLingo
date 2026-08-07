@@ -1,0 +1,14 @@
+# Changelog
+
+All notable changes to DomLingo will be documented in this file.
+
+The project follows [Semantic Versioning](https://semver.org/). During the initial Alpha phase,
+interfaces and stored data formats may still change.
+
+## [Unreleased]
+
+### Added
+
+- Product requirements, technical design, and development roadmap.
+- GitHub Flow contribution rules and Pull Request/Issue templates.
+- Initial WXT, React, TypeScript, testing, and build foundation.
