@@ -3,7 +3,7 @@ import { validateProviderEndpoint } from '../providers/endpoint';
 import { testOpenAICompatibleConnection } from '../providers/openai-compatible';
 import { ProviderRequestError } from '../providers/provider-error';
 import type { ProviderTestResponse } from '../providers/types';
-import { getSessionApiKey } from '../storage/session-secret-store';
+import { getApiKey } from '../storage/api-key-store';
 
 const TRUSTED_CONTEXTS = { accessLevel: 'TRUSTED_CONTEXTS' } as const;
 
@@ -25,9 +25,8 @@ async function handleProviderTest(message: unknown): Promise<ProviderTestRespons
     return { ok: false, code: 'INVALID_REQUEST', message: 'Endpoint 或模型名称无效。' };
   }
 
-  const apiKey = await getSessionApiKey(message.config.providerId);
-
   try {
+    const apiKey = await getApiKey(message.config.providerId);
     await testOpenAICompatibleConnection({
       ...message.config,
       endpoint: endpoint.endpoint,

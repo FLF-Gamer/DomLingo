@@ -90,11 +90,17 @@ h2 {
   gap: 18px;
 }
 
-.settings-form label {
+.settings-form label,
+.credential-field {
   display: grid;
   gap: 7px;
   font-size: 14px;
   font-weight: 650;
+}
+
+.credential-field label {
+  display: grid;
+  gap: 7px;
 }
 
 .settings-form input,
@@ -125,6 +131,28 @@ h2 {
 small {
   font-size: 12px;
   font-weight: 400;
+}
+
+.credential-help {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.text-button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  color: #b42318;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.text-button:hover {
+  text-decoration: underline;
 }
 
 .form-actions {
@@ -183,6 +211,59 @@ small {
   margin-bottom: 8px;
 }
 
+.permission-list {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #eaecf0;
+}
+
+.permission-list h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.permission-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permission-list li {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.permission-list code {
+  overflow-wrap: anywhere;
+  color: #344054;
+  font-size: 12px;
+}
+
+.permission-list button {
+  flex: none;
+  padding: 5px 9px;
+  border: 1px solid #fda29b;
+  border-radius: 7px;
+  color: #b42318;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.permission-list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 @media (max-width: 680px) {
   .options-shell {
     padding: 32px 0 48px;
@@ -194,6 +275,12 @@ small {
   }
 
   .form-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .credential-help,
+  .permission-list li {
     align-items: flex-start;
     flex-direction: column;
   }

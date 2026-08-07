@@ -3,7 +3,7 @@
 | 项目 | 当前状态 |
 | --- | --- |
 | 更新日期 | 2026-08-07 |
-| 当前阶段 | M0 已通过 PR #1 合并，M1 Provider 与权限基础开发中 |
+| 当前阶段 | M0 已通过 PR #1 合并，M1 自动化实现完成并进入人工验收 |
 | 当前里程碑 | M1：设置、权限与 Provider（进行中） |
 | 当前分支 | `codex/feat/provider-settings` |
 | 第一交付渠道 | GitHub Releases 开发者版本 |
@@ -37,7 +37,7 @@
 | GitHub Alpha | 待开始 | 依赖核心翻译闭环 |
 | Chrome Web Store | 待开始 | 依赖 GitHub Beta 稳定性验证 |
 
-当前总体判断：设计基线和 M0 工程基线已经建立，PR #1 已通过 GitHub Actions 并合并到 `main`。M1 正在实现 Provider 预设、Endpoint 安全校验、精确域名权限、连接测试和设置存储；Chrome 手动加载验收将使用 M1 可配置版本一起完成。
+当前总体判断：设计基线和 M0 工程基线已经建立，PR #1 已通过 GitHub Actions 并合并到 `main`。M1 的 Provider、Endpoint 校验、精确域名权限、连接测试、设置存储和设备级密钥加密已经完成自动化实现；合并前还需要使用 Chrome 完成真实远程服务、权限撤销和浏览器重启恢复的人工验收。
 
 ## 3. 已确认决策记录
 
@@ -168,12 +168,14 @@ Chrome Manifest 的数值版本与 Git 标签的预发布名称在工程初始�
 - 添加运行时域名授权、Chrome Sync 普通设置和可信会话密钥存储；
 - 添加后台连接测试、稳定错误码和 Options 配置表单；
 - 添加 Provider、Endpoint、错误映射和消息守卫单元测试。
+- 添加 IndexedDB 不可导出设备密钥、AES-GCM 本机密文和会话按需恢复；
+- 添加已授权 API 域名列表、精确权限撤销和已保存 Key 删除操作；
+- 添加密钥 envelope、重启恢复、权限拒绝/撤销和 Ollama-compatible fixture 测试。
 
 当前限制：
 
-- API Key 设备级加密持久化尚未完成，当前只保存在可信 `storage.session`；
-- 已授权域名列表与撤销 UI 尚未完成；
-- 需要使用真实远程服务和 Ollama fixture 完成集成验证。
+- 进程内 Ollama-compatible fixture 已通过，但仍需用户配置真实远程服务做人工连接测试；
+- 需要在 Chrome 中人工验证权限授权/撤销和浏览器重启后的密钥恢复。
 
 任务：
 

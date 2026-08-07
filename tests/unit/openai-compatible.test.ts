@@ -52,4 +52,19 @@ describe('testOpenAICompatibleConnection', () => {
       code: 'INVALID_RESPONSE',
     });
   });
+
+  it('returns a stable timeout error when the request is aborted', async () => {
+    const fetchImpl = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    ) as typeof fetch;
+
+    await expect(
+      testOpenAICompatibleConnection(config, { fetchImpl, timeoutMs: 1 }),
+    ).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' });
+  });
 });
