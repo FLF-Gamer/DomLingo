@@ -1,0 +1,67 @@
+name: Bug report
+description: 报告可复现的 DomLingo 缺陷
+title: '[Bug]: '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请勿提交 API Key、私人网页正文、认证信息或包含敏感内容的完整日志。
+  - type: input
+    id: version
+    attributes:
+      label: DomLingo 版本
+      placeholder: 例如 0.1.0-alpha.1
+    validations:
+      required: true
+  - type: input
+    id: chrome-version
+    attributes:
+      label: Chrome 版本
+    validations:
+      required: true
+  - type: dropdown
+    id: page-type
+    attributes:
+      label: 页面类型
+      options:
+        - 静态文章
+        - 技术文档
+        - React/Vue SPA
+        - 无限滚动
+        - 表单或交互页面
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 说明实际行为和预期行为，不要粘贴私人网页全文。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开公开测试页面
+        2. 点击翻译当前页面
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: safe-logs
+    attributes:
+      label: 脱敏日志或截图
+      description: 请先删除 API Key、完整正文、URL query 和个人信息。
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已经确认提交内容不包含 API Key 或私人数据
+          required: true
+        - label: 我使用的是自己有权访问的页面
+          required: true
