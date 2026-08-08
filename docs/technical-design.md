@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文档版本 | 0.2 |
+| 文档版本 | 0.3 |
 | 文档状态 | MVP 设计基线 |
 | 对应 PRD | [DomLingo 产品需求文档](product-requirements.md) |
 | 目标运行环境 | Chrome、Manifest V3 |
@@ -23,6 +23,7 @@
 | 目标语言 | 固定简体中文 |
 | 失败策略 | 逐节点验证和保留原文 |
 | 请求优先级 | 当前可视区域优先 |
+| 会话生命周期 | 关闭 Popup 继续；关闭标签页、刷新、跨文档导航或 generation 失效时取消当前会话 |
 | 密钥策略 | 持久化密文；解密结果仅进入可信 `storage.session`；导出和同步必须加密 |
 | 后端服务 | 无 DomLingo 后端，请求直达用户配置的模型服务 |
 | 内容边界 | 用户已打开的公开网页、用户主动触发、译文仅在当前浏览器呈现 |
@@ -467,6 +468,10 @@ const REQUEST_TIMEOUT_MS = 60_000;
 - 400、401、403、404 等配置性错误不自动重试；
 - 重试使用指数退避和随机抖动，并遵守服务端 `Retry-After`；
 - 用户停止时通过 `AbortController` 取消后台仍存活的请求；
+- Popup 生命周期不控制翻译会话，关闭 Popup 不触发取消；
+- 标签页关闭、刷新或跨文档导航时，后台按 `tabId` 取消所有关联 session；
+- SPA generation 失效时，Content Script 取消旧 session，再决定是否为新正文继续翻译；
+- 取消只能中止客户端等待和后续发送，不能承诺撤销模型服务已经开始的处理或计费；
 - 即使 Service Worker 生命周期中断，恢复后也不能假设旧请求仍存在。
 
 ## 12. Provider 设计
@@ -626,7 +631,7 @@ textNode.nodeValue = leadingWhitespace + translated + trailingWhitespace;
 - 新增了更高可信度的 `main` 或 `article`；
 - 当前根节点的有效正文长度显著下降。
 
-重新识别后保留旧节点的恢复记录，但新内容使用新的 root generation。旧根节点的迟到响应不得写入新页面。
+任何 SPA root generation 切换都先取消旧 session 的存活请求。重新识别后保留旧节点的恢复记录，但新内容使用新的 root generation；如果翻译模式仍开启，可以为新正文继续创建批次。旧根节点的迟到响应不得写入新页面。
 
 ### 15.3 支持边界
 
@@ -742,6 +747,11 @@ Service Worker 可能随时终止，因此：
 - 页面 DOM 会话以 Content Script 为权威；
 - Popup 每次打开都重新查询当前 Tab 状态；
 - 后台内存中的 `AbortController` 只用于当前生命周期，不视为持久状态；
+- 后台维护 `tabId → sessionId → AbortController` 的临时索引；
+- `chrome.tabs.onRemoved` 在标签页关闭时取消该 Tab 的全部 session；
+- 顶层文档进入 loading 状态时取消旧文档 session，覆盖刷新和跨文档导航；
+- Content Script 在 SPA generation 失效时显式发送 `CANCEL_SESSION`；
+- 关闭 Popup 不改变上述索引，也不取消翻译；
 - Content Script 为每个请求设置超时，后台中断后可以安全重试未确认批次；
 - 批次写回必须依靠 requestId 和 generation 去重，保证至少一次传递不会重复修改。
 
