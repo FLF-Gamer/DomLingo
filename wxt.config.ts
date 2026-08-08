@@ -3,6 +3,13 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-react'],
+  vite: () => ({
+    build: {
+      // Chrome may report shared extension chunks as unused cross-world preloads
+      // after a popup closes. Static imports still load these chunks normally.
+      modulePreload: false,
+    },
+  }),
   dev: {
     server: {
       port: 3000,

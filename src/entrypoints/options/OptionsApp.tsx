@@ -89,6 +89,7 @@ export function OptionsApp() {
       providerId,
       endpoint: nextPreset.endpoint,
       model: providerId === 'custom' ? '' : nextPreset.modelExample,
+      structuredOutputMode: 'prompt',
     }));
     setApiKey('');
     setHasSavedApiKey(false);
@@ -151,14 +152,19 @@ export function OptionsApp() {
         ...settings,
         endpoint: validation.endpoint,
         model: settings.model.trim(),
+        structuredOutputMode: response.structuredOutputMode,
       });
       setApiKey('');
       setHasSavedApiKey(hasSavedApiKey || Boolean(enteredApiKey));
       setStatus({
         tone: 'success',
-        message: enteredApiKey
-          ? '连接成功。普通设置已同步；API Key 已在本机加密保存。'
-          : '连接成功。普通设置已同步。',
+        message: `连接成功，结构化输出模式：${
+          response.structuredOutputMode === 'json-schema'
+            ? 'JSON Schema'
+            : response.structuredOutputMode === 'json-object'
+              ? 'JSON Mode'
+              : 'Prompt 兼容模式'
+        }。${enteredApiKey ? 'API Key 已在本机加密保存。' : '普通设置已同步。'}`,
       });
     } catch {
       if (enteredApiKey) {
@@ -295,6 +301,34 @@ export function OptionsApp() {
               spellCheck={false}
               onChange={(event) => updateField('model', event.target.value)}
             />
+            <small>
+              当前结构化输出：
+              {settings.structuredOutputMode === 'json-schema'
+                ? 'JSON Schema'
+                : settings.structuredOutputMode === 'json-object'
+                  ? 'JSON Mode'
+                  : 'Prompt 兼容模式'}
+              ；保存时会重新探测。
+            </small>
+          </label>
+
+          <label>
+            <span>并发请求数</span>
+            <input
+              type="number"
+              min={1}
+              max={3}
+              step={1}
+              value={settings.concurrency}
+              disabled={loading}
+              onChange={(event) =>
+                updateField(
+                  'concurrency',
+                  Math.max(1, Math.min(3, Math.floor(Number(event.target.value) || 1))),
+                )
+              }
+            />
+            <small>默认 3；诊断服务并发兼容性时可以设为 1。</small>
           </label>
 
           <div className="form-actions">

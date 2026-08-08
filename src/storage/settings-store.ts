@@ -1,5 +1,9 @@
 import { getProviderPreset } from '../providers/presets';
-import type { ProviderPresetId } from '../providers/types';
+import {
+  isStructuredOutputMode,
+  type ProviderPresetId,
+  type StructuredOutputMode,
+} from '../providers/types';
 
 const SETTINGS_KEY = 'domlingo.syncedSettings';
 
@@ -8,6 +12,7 @@ export interface SyncedSettings {
   providerId: ProviderPresetId;
   endpoint: string;
   model: string;
+  structuredOutputMode: StructuredOutputMode;
   targetLanguage: 'zh-CN';
   customPrompt: string;
   promptVersion: '1';
@@ -25,10 +30,11 @@ export const DEFAULT_SYNCED_SETTINGS: SyncedSettings = {
   providerId: defaultPreset.id,
   endpoint: defaultPreset.endpoint,
   model: defaultPreset.modelExample,
+  structuredOutputMode: 'prompt',
   targetLanguage: 'zh-CN',
   customPrompt: '',
   promptVersion: '1',
-  batchCharacterLimit: 6_000,
+  batchCharacterLimit: 2_000,
   concurrency: 3,
   dynamicTranslationEnabled: true,
   cacheEnabled: true,
@@ -46,7 +52,25 @@ export async function loadSyncedSettings(): Promise<SyncedSettings> {
   const candidate = value as Partial<SyncedSettings>;
   if (candidate.schemaVersion !== 1) return { ...DEFAULT_SYNCED_SETTINGS };
 
-  return { ...DEFAULT_SYNCED_SETTINGS, ...candidate, schemaVersion: 1 };
+  const concurrency = Number.isFinite(candidate.concurrency)
+    ? Math.max(1, Math.min(3, Math.floor(candidate.concurrency!)))
+    : DEFAULT_SYNCED_SETTINGS.concurrency;
+  // M2 originally stored 4,000–8,000 character batches. Those values caused
+  // repeated length-limited responses on otherwise compatible providers, and
+  // the setting is not user-configurable yet. Normalize existing installs to
+  // the safer M2 limit as well as using it for new installs.
+  const batchCharacterLimit = DEFAULT_SYNCED_SETTINGS.batchCharacterLimit;
+
+  return {
+    ...DEFAULT_SYNCED_SETTINGS,
+    ...candidate,
+    concurrency,
+    batchCharacterLimit,
+    structuredOutputMode: isStructuredOutputMode(candidate.structuredOutputMode)
+      ? candidate.structuredOutputMode
+      : DEFAULT_SYNCED_SETTINGS.structuredOutputMode,
+    schemaVersion: 1,
+  };
 }
 
 export async function saveSyncedSettings(settings: SyncedSettings): Promise<void> {

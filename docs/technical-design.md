@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文档版本 | 0.2 |
+| 文档版本 | 0.3 |
 | 文档状态 | MVP 设计基线 |
 | 对应 PRD | [DomLingo 产品需求文档](product-requirements.md) |
 | 目标运行环境 | Chrome、Manifest V3 |
@@ -23,6 +23,7 @@
 | 目标语言 | 固定简体中文 |
 | 失败策略 | 逐节点验证和保留原文 |
 | 请求优先级 | 当前可视区域优先 |
+| 会话生命周期 | 关闭 Popup 继续；关闭标签页、刷新、跨文档导航或 generation 失效时取消当前会话 |
 | 密钥策略 | 持久化密文；解密结果仅进入可信 `storage.session`；导出和同步必须加密 |
 | 后端服务 | 无 DomLingo 后端，请求直达用户配置的模型服务 |
 | 内容边界 | 用户已打开的公开网页、用户主动触发、译文仅在当前浏览器呈现 |
@@ -392,10 +393,11 @@ code, pre, kbd, samp,
 textarea, [contenteditable="true"],
 [translate="no"], [hidden], [aria-hidden="true"],
 nav, [role="navigation"],
+not-prose、code-block、toolbar、页头操作控件，
 以及 display:none / visibility:hidden 的内容
 ```
 
-代码块默认不翻译，以避免变量名、命令和格式被破坏。普通行内链接文字可以翻译，但 `href` 保持不变。
+代码块及其复制、反馈、助手等工具控件默认不翻译，以避免变量名、命令、格式和页面操作被破坏。行内 `code`、`kbd`、`samp` 不进入 `segments`，但文本可以进入同一语义块的只读 `context`，帮助模型翻译相邻碎片。普通行内链接文字可以翻译，但 `href` 保持不变。
 
 ## 9. 节点采集与语义分组
 
@@ -429,12 +431,13 @@ nav, [role="navigation"],
 
 ```text
 p, li, h1-h6, blockquote, figcaption,
-td, th, dt, dd, button, label
+tr, dt, dd, button, label
 ```
 
 同一祖先内的节点组成一个 `TranslationBlock`。`context` 来自该块经过清理的可见文本，`segments` 只包含需要写回的具体节点。
 
-超长单节点按句子边界拆为多个子段，返回后按顺序拼接，再作为一次节点级事务写回。
+超长单节点按句子边界拆为多个子段，返回后按顺序拼接。普通文本以段落、列表项或表格行为
+原子事务写回；白名单属性仍按属性节点独立写回。
 
 ## 10. 可视区域优先级
 
@@ -452,21 +455,30 @@ td, th, dt, dd, button, label
 默认参数：
 
 ```ts
-const DEFAULT_BATCH_CHARACTER_LIMIT = 4_000;
+const DEFAULT_BATCH_CHARACTER_LIMIT = 2_000;
 const DEFAULT_CONCURRENCY = 3;
+const DEFAULT_MAX_SEGMENTS_PER_BATCH = 10;
 const MAX_RETRY_COUNT = 3;
+const MAX_ADAPTIVE_ATTEMPTS = 12;
 const REQUEST_TIMEOUT_MS = 60_000;
 ```
 
 规则：
 
 - 字符限制计算实际发送的 segment 和必要 context；
+- 单批最多包含 10 个 segment ID，降低短碎片较多时返回 JSON 被截断或偏离协议的概率；
 - 单个块超过限制时才允许拆分；
+- 格式错误、输出截断或整批漏回时，将失败批次按 segment 顺序二分并重试，直到成功、单 segment 或达到 12 次逻辑尝试；只有原批次第一次请求允许额外进行一次格式修复，子批次不再重复格式修复；
 - 并发以页面会话为单位；
+- Provider 请求可以并发完成，但 Content Script 按原始批次索引缓冲结果并依次写回，前一批未完成时后一批不得先修改页面；
 - 429、502、503、504 和网络暂时失败可以重试；
 - 400、401、403、404 等配置性错误不自动重试；
 - 重试使用指数退避和随机抖动，并遵守服务端 `Retry-After`；
 - 用户停止时通过 `AbortController` 取消后台仍存活的请求；
+- Popup 生命周期不控制翻译会话，关闭 Popup 不触发取消；
+- 标签页关闭、刷新或跨文档导航时，后台按 `tabId` 取消所有关联 session；
+- SPA generation 失效时，Content Script 取消旧 session；M2 提示用户重新点击翻译，M3 再自动识别和翻译新正文；
+- 取消只能中止客户端等待和后续发送，不能承诺撤销模型服务已经开始的处理或计费；
 - 即使 Service Worker 生命周期中断，恢复后也不能假设旧请求仍存在。
 
 ## 12. Provider 设计
@@ -478,6 +490,7 @@ interface ProviderConfig {
   endpoint: string;
   apiKey?: string;
   model: string;
+  structuredOutputMode: 'json-schema' | 'json-object' | 'prompt';
 }
 
 interface TranslationRequest {
@@ -529,6 +542,15 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 {
   "model": "user-selected-model",
   "temperature": 0,
+  "max_tokens": 4096,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "domlingo_translation_batch",
+      "strict": true,
+      "schema": "..."
+    }
+  },
   "messages": [
     {
       "role": "system",
@@ -542,7 +564,13 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 }
 ```
 
-不能假设所有 OpenAI-compatible 服务都支持 `response_format`。Provider 可以对已验证支持的服务启用结构化输出，否则使用普通文本响应并执行严格 JSON 解析。
+不能假设所有 OpenAI-compatible 服务都支持相同的 `response_format`。用户执行“测试连接并保存”时，后台只发送固定的非网页探测文本，按 `json_schema + strict`、`json_object`、普通 Prompt 的顺序探测；能力与 Provider、规范化 Endpoint、模型名称共同绑定并保存到普通同步设置。API Key 存储方式不变。
+
+翻译时按已探测能力构造请求：`json-schema` 强制顶层 `translations`、每项 `id/text`、必填字段和 `additionalProperties: false`；`json-object` 只强制合法 JSON；`prompt` 不发送 `response_format`。所有模式仍执行同一套应用层 ID 与文本安全校验。
+
+`max_tokens` 根据当前批次的原文字符、ID 长度和 segment 数动态估算，并为兼容推理模型额外
+预留 1536 token，最终限制在 2048 至 8192。Chat Completions 的 `finish_reason=length` 映射为
+`OUTPUT_TRUNCATED`，不得尝试解析或写回不完整 JSON，而是进入有界自适应拆批。
 
 ## 13. Prompt 与响应验证
 
@@ -562,7 +590,7 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 ### 13.2 验证流水线
 
 1. 限制响应最大字节数；
-2. 解析 JSON；
+2. 解析 JSON；若响应整体仅由一个完整 JSON 代码围栏包裹，先移除围栏再解析，围栏之外出现说明文字仍拒绝；
 3. 验证顶层结构；
 4. 检查 ID 是否属于当前批次；
 5. 拒绝重复 ID；
@@ -571,7 +599,13 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 8. 将缺失或无效 ID 标记为节点失败；
 9. 仅返回验证通过的 ID 给 Content Script。
 
-整个批次无法解析时允许进行一次“格式修复重试”；修复请求仍只发送该批次，不发送更多网页内容。
+Content Script 按节点汇总 `INVALID_RESPONSE`、`MISSING_ID`、`DUPLICATE_ID`、`INVALID_TEXT`、Provider 错误和 `STALE_DOM`，Popup 与页面浮层显示分类数量。批次级 Provider 错误不得伪装成模型漏回 ID。
+
+整个原始批次无法解析时自动进行一次“格式修复重试”；修复请求携带原批次和该次无效响应，要求模型补回全部 ID 的纯 JSON，不发送更多网页内容，也不进行第二次格式修复。修复后仍无效、输出截断或整批 ID 缺失时，后台按原顺序二分失败 segment 并重试；部分有效响应只重试漏回或重复的 ID。单个原始批次最多执行 12 次逻辑尝试，避免不兼容服务造成无界费用。
+
+页面会话保存原始 `records`、`blocks` 与已验证译文缓存。翻译结束或停止后，Popup 和页面浮层
+在存在未写回节点时显示“重试失败内容”；重试只发送缓存中尚不存在的 segment，保留同一语义
+块内尚未写回的成功译文，并建立新的 session ID 以隔离上一轮迟到响应。
 
 ## 14. DOM 写回与恢复
 
@@ -584,6 +618,10 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 - 节点仍位于当前正文根节点中；
 - 当前值仍等于采集时的值或本扩展记录的上一次值；
 - 响应 ID 和文本已通过验证。
+
+普通文本按语义块执行两阶段写回：先确认块内所有 segment 已有有效译文且所有目标节点仍满足
+前置条件，再一次性修改该段落、列表项或表格行。任一 segment 缺失或任一节点已变化时，该块
+保持原文；白名单属性不与可见正文绑定，继续独立写回。
 
 文本节点使用：
 
@@ -626,7 +664,7 @@ textNode.nodeValue = leadingWhitespace + translated + trailingWhitespace;
 - 新增了更高可信度的 `main` 或 `article`；
 - 当前根节点的有效正文长度显著下降。
 
-重新识别后保留旧节点的恢复记录，但新内容使用新的 root generation。旧根节点的迟到响应不得写入新页面。
+任何 SPA root generation 切换都先取消旧 session 的存活请求，并清除旧文档的节点引用，旧根节点的迟到响应不得写入新页面。M2 通过 `popstate`、路由型 `hashchange`、`pagehide` 和 URL 轮询检测路由变化；普通文档内锚点不触发取消。M2 会提示用户在新路由重新点击翻译，自动识别并继续翻译新正文属于 M3。
 
 ### 15.3 支持边界
 
@@ -742,6 +780,11 @@ Service Worker 可能随时终止，因此：
 - 页面 DOM 会话以 Content Script 为权威；
 - Popup 每次打开都重新查询当前 Tab 状态；
 - 后台内存中的 `AbortController` 只用于当前生命周期，不视为持久状态；
+- 后台维护 `tabId → sessionId → AbortController` 的临时索引；
+- `chrome.tabs.onRemoved` 在标签页关闭时取消该 Tab 的全部 session；
+- 顶层文档进入 loading 状态时取消旧文档 session，覆盖刷新和跨文档导航；
+- Content Script 在 SPA generation 失效时显式发送 `CANCEL_SESSION`；
+- 关闭 Popup 不改变上述索引，也不取消翻译；
 - Content Script 为每个请求设置超时，后台中断后可以安全重试未确认批次；
 - 批次写回必须依靠 requestId 和 generation 去重，保证至少一次传递不会重复修改。
 
@@ -817,6 +860,7 @@ type ErrorCode =
 ## 22. 性能设计
 
 - TreeWalker 扫描按时间片分段，避免一次长任务；
+- 正文候选收集、候选评分和节点采集默认每 50 个扫描单元检查取消状态并让出主线程；
 - 只在正文根节点中扫描；
 - IntersectionObserver 负责优先级，不对每个滚动事件同步测量布局；
 - MutationObserver 结果批量去重后再处理；
@@ -863,6 +907,8 @@ type ErrorCode =
 - Service Worker 与模拟 OpenAI-compatible 服务；
 - 429/5xx 重试；
 - 迟到响应和 generation 失效；
+- 标签页关闭、顶层文档 loading、pagehide 和 SPA URL 变化的会话取消；
+- 5,000 文本节点扫描的分片执行与取消；
 - 缓存命中；
 - storage access level；
 - 可选 host permission 的授权和拒绝路径。
