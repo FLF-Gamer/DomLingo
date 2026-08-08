@@ -252,9 +252,18 @@ interface EncryptedCredentialEnvelope {
   iv: string;
   ciphertext: string;
 }
+
+interface DeviceEncryptedCredentialEnvelope {
+  schemaVersion: 1;
+  algorithm: 'AES-GCM';
+  iv: string;
+  ciphertext: string;
+}
 ```
 
 `SyncedSettings` 存入 `chrome.storage.sync`；`EncryptedLocalSecrets` 存入 `chrome.storage.local`；解密后的 `SessionSecrets` 只存入 `chrome.storage.session`。设备级非导出 AES-GCM 密钥保存在扩展自己的 IndexedDB 中，用于本机静态加密；跨设备同步和文件导出仍使用用户口令派生的密钥。
+
+本机 envelope 使用 96-bit 随机 IV 和固定用途的 additional authenticated data；每次保存都生成新 IV。IndexedDB 中的设备密钥设置为不可导出，只授予 `encrypt` 和 `decrypt` 用途。浏览器会话重建后，后台按需解密本机密文，并仅把明文放回受限的 `chrome.storage.session`。
 
 扩展启动时调用：
 

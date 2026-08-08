@@ -2,10 +2,10 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 更新日期 | 2026-08-07 |
-| 当前阶段 | M0 本地工程实现和自动化验证已完成，等待 Chrome 手动加载验收 |
-| 当前里程碑 | M0：仓库治理与工程初始化（收尾中） |
-| 当前分支 | `codex/feat/project-foundation` |
+| 更新日期 | 2026-08-08 |
+| 当前阶段 | M1 开发与人工验收完成，PR #2 待评审合并 |
+| 当前里程碑 | M1：设置、权限与 Provider（已完成） |
+| 当前分支 | `codex/feat/provider-settings` |
 | 第一交付渠道 | GitHub Releases 开发者版本 |
 | 稳定交付渠道 | Chrome Web Store 公开版本 |
 | 开源协议 | Apache-2.0 |
@@ -33,11 +33,12 @@
 | LICENSE 与版权主体 | 已完成 | Apache-2.0、NOTICE 与 2026 DomLingo Contributors |
 | GitHub Flow | 已完成 | 特性分支、贡献规范、PR/Issue 模板和 CI 工作流均已建立 |
 | 工程脚手架 | 已完成 | WXT 0.21、React、TypeScript、MV3 入口和质量工具已通过本地检查 |
+| Provider 与权限 | 已完成 | 真实服务、权限撤销和浏览器重启恢复均已通过验收 |
 | 核心翻译闭环 | 待开始 | 尚未实现 |
 | GitHub Alpha | 待开始 | 依赖核心翻译闭环 |
 | Chrome Web Store | 待开始 | 依赖 GitHub Beta 稳定性验证 |
 
-当前总体判断：设计基线和 M0 工程基线已经建立，不再需要补充架构级决策。`pnpm check` 和构建产物冒烟测试已在本地通过；剩余的 M0 验收项是在 Chrome 中手动加载 Popup/Options。当前不连接远程仓库、不推送，工作文件仍未暂存和提交。
+当前总体判断：设计基线和 M0 工程基线已经建立，PR #1 已通过 GitHub Actions 并合并到 `main`。M1 的 Provider、Endpoint 校验、精确域名权限、连接测试、设置存储和设备级密钥加密已经完成；真实远程服务、权限撤销和浏览器重启恢复也已在 Chrome 中通过人工验收。PR #2 可以进入正式评审与合并流程。
 
 ## 3. 已确认决策记录
 
@@ -56,6 +57,7 @@
 | 2026-08-07 | 禁止能力 | 不绕过登录、订阅、付费墙、DRM，不抓取或发布完整译文 |
 | 2026-08-07 | 开源协议 | Apache-2.0 |
 | 2026-08-07 | 发布顺序 | GitHub 开源 → GitHub Releases → 商店 Unlisted → 商店 Public |
+| 2026-08-08 | M1 人工验收 | 真实服务连接、权限撤销和浏览器重启恢复通过 |
 
 ## 4. 发布通道
 
@@ -116,7 +118,7 @@ Chrome Manifest 的数值版本与 Git 标签的预发布名称在工程初始�
 
 ### M0：仓库治理与工程初始化
 
-状态：`进行中`
+状态：`已完成`
 
 任务：
 
@@ -158,7 +160,27 @@ Chrome Manifest 的数值版本与 Git 标签的预发布名称在工程初始�
 
 ### M1：设置、权限与 Provider
 
-状态：`待开始`
+状态：`已完成`
+
+当前已完成：
+
+- 创建 M1 特性分支 `codex/feat/provider-settings`；
+- 添加六类 Provider 预设与 OpenAI-compatible 公共类型；
+- 添加 HTTPS/loopback HTTP Endpoint 安全校验与精确权限 pattern；
+- 添加运行时域名授权、Chrome Sync 普通设置和可信会话密钥存储；
+- 添加后台连接测试、稳定错误码和 Options 配置表单；
+- 添加 Provider、Endpoint、错误映射和消息守卫单元测试。
+- 添加 IndexedDB 不可导出设备密钥、AES-GCM 本机密文和会话按需恢复；
+- 添加已授权 API 域名列表、精确权限撤销和已保存 Key 删除操作；
+- 添加密钥 envelope、重启恢复、权限拒绝/撤销和 Ollama-compatible fixture 测试。
+
+验收记录：
+
+- 进程内 Ollama-compatible fixture 通过；
+- 至少一个真实远程兼容服务连接通过；
+- Chrome 域名权限授权、撤销和重新申请通过；
+- 完全退出并重启 Chrome 后，加密保存的 API Key 可以安全恢复；
+- 本地 `pnpm check` 与 PR #2 GitHub Actions 通过。
 
 任务：
 
