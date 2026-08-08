@@ -34,5 +34,5 @@ interfaces and stored data formats may still change.
 - Automatic request cancellation on tab close, reload, cross-document navigation, pagehide, and SPA route invalidation without adding broad tab permissions.
 - Time-sliced main-content scoring and source collection with 5,000-node responsiveness regression coverage.
 
-[Unreleased]: https://github.com/FangLinFeng-Gamer/DomLingo/compare/v0.1.0-alpha.0...HEAD
-[0.1.0-alpha.0]: https://github.com/FangLinFeng-Gamer/DomLingo/releases/tag/v0.1.0-alpha.0
+[Unreleased]: https://github.com/FLF-Gamer/DomLingo/compare/v0.1.0-alpha.0...HEAD
+[0.1.0-alpha.0]: https://github.com/FLF-Gamer/DomLingo/releases/tag/v0.1.0-alpha.0
