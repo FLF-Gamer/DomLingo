@@ -477,7 +477,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 - 用户停止时通过 `AbortController` 取消后台仍存活的请求；
 - Popup 生命周期不控制翻译会话，关闭 Popup 不触发取消；
 - 标签页关闭、刷新或跨文档导航时，后台按 `tabId` 取消所有关联 session；
-- SPA generation 失效时，Content Script 取消旧 session，再决定是否为新正文继续翻译；
+- SPA generation 失效时，Content Script 取消旧 session；M2 提示用户重新点击翻译，M3 再自动识别和翻译新正文；
 - 取消只能中止客户端等待和后续发送，不能承诺撤销模型服务已经开始的处理或计费；
 - 即使 Service Worker 生命周期中断，恢复后也不能假设旧请求仍存在。
 
@@ -664,7 +664,7 @@ textNode.nodeValue = leadingWhitespace + translated + trailingWhitespace;
 - 新增了更高可信度的 `main` 或 `article`；
 - 当前根节点的有效正文长度显著下降。
 
-任何 SPA root generation 切换都先取消旧 session 的存活请求。重新识别后保留旧节点的恢复记录，但新内容使用新的 root generation；如果翻译模式仍开启，可以为新正文继续创建批次。旧根节点的迟到响应不得写入新页面。
+任何 SPA root generation 切换都先取消旧 session 的存活请求，并清除旧文档的节点引用，旧根节点的迟到响应不得写入新页面。M2 通过 `popstate`、路由型 `hashchange`、`pagehide` 和 URL 轮询检测路由变化；普通文档内锚点不触发取消。M2 会提示用户在新路由重新点击翻译，自动识别并继续翻译新正文属于 M3。
 
 ### 15.3 支持边界
 
@@ -860,6 +860,7 @@ type ErrorCode =
 ## 22. 性能设计
 
 - TreeWalker 扫描按时间片分段，避免一次长任务；
+- 正文候选收集、候选评分和节点采集默认每 50 个扫描单元检查取消状态并让出主线程；
 - 只在正文根节点中扫描；
 - IntersectionObserver 负责优先级，不对每个滚动事件同步测量布局；
 - MutationObserver 结果批量去重后再处理；
@@ -906,6 +907,8 @@ type ErrorCode =
 - Service Worker 与模拟 OpenAI-compatible 服务；
 - 429/5xx 重试；
 - 迟到响应和 generation 失效；
+- 标签页关闭、顶层文档 loading、pagehide 和 SPA URL 变化的会话取消；
+- 5,000 文本节点扫描的分片执行与取消；
 - 缓存命中；
 - storage access level；
 - 可选 host permission 的授权和拒绝路径。

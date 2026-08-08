@@ -3,10 +3,11 @@ import { resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { detectMainContent } from '../../src/content/main-content';
+import { detectMainContent, detectMainContentAsync } from '../../src/content/main-content';
 import {
   applyTranslations,
   collectPageSources,
+  collectPageSourcesAsync,
   restoreOriginals,
 } from '../../src/content/source-collector';
 
@@ -43,15 +44,15 @@ describe('static M2 fixtures', () => {
     document.documentElement.innerHTML = '<head></head><body></body>';
   });
 
-  it.each(FIXTURES)('detects, translates, and exactly restores %s', (fixture, rootId) => {
+  it.each(FIXTURES)('detects, translates, and exactly restores %s', async (fixture, rootId) => {
     loadFixture(fixture);
-    const detection = detectMainContent(document);
+    const detection = await detectMainContentAsync(document, { yieldEvery: 10 });
     expect(detection?.root.id).toBe(rootId);
 
     const root = detection!.root;
     const originalHtml = root.innerHTML;
     const fingerprint = protectedDomFingerprint(root);
-    const collected = collectPageSources(root, `fixture-${rootId}`);
+    const collected = await collectPageSourcesAsync(root, `fixture-${rootId}`, 10);
     expect(collected.records.length).toBeGreaterThanOrEqual(3);
 
     const translations = new Map(

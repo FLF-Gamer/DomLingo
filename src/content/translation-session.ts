@@ -8,7 +8,7 @@ import type {
 } from '../messaging/protocol';
 import { buildTranslationBatches, mapWithConcurrency } from '../translation/batching';
 import type { TranslationBlock } from '../translation/types';
-import { detectMainContent } from './main-content';
+import { detectMainContentAsync } from './main-content';
 import {
   applyTranslations,
   collectPageSourcesAsync,
@@ -169,6 +169,30 @@ export class PageTranslationSession {
     return this.getStatus();
   }
 
+  invalidateForNavigation(): PageTranslationStatus {
+    if (
+      this.status.state === 'idle' ||
+      (this.status.state === 'stopped' && this.records.length === 0 && !this.sessionId)
+    ) {
+      return this.getStatus();
+    }
+
+    const cancelledSessionId = this.sessionId;
+    this.generation += 1;
+    if (cancelledSessionId) this.cancelBackgroundSession(cancelledSessionId);
+    this.root = undefined;
+    this.records = [];
+    this.blocks = [];
+    this.translations.clear();
+    this.sessionId = '';
+    this.setStatus({
+      ...IDLE_STATUS,
+      state: 'stopped',
+      message: '页面已导航，旧翻译会话已停止。请重新点击翻译当前页面。',
+    });
+    return this.getStatus();
+  }
+
   restore(): PageTranslationStatus {
     const cancelledSessionId = this.sessionId;
     this.generation += 1;
@@ -242,7 +266,10 @@ export class PageTranslationSession {
     this.translations.clear();
     this.setStatus({ ...IDLE_STATUS, state: 'scanning', message: '正在识别网页正文…' });
 
-    const detection = detectMainContent(this.document);
+    const detection = await detectMainContentAsync(this.document, {
+      shouldContinue: () => generation === this.generation,
+    });
+    if (generation !== this.generation) return;
     if (!detection) {
       this.setStatus({
         ...IDLE_STATUS,

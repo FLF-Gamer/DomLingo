@@ -218,9 +218,9 @@ function yieldToMainThread(document: Document): Promise<void> {
 export async function collectPageSourcesAsync(
   root: HTMLElement,
   sessionId: string,
-  yieldEvery = 250,
+  yieldEvery = 50,
 ): Promise<CollectedPageSources> {
-  const safeYieldEvery = Number.isFinite(yieldEvery) ? Math.max(1, Math.floor(yieldEvery)) : 250;
+  const safeYieldEvery = Number.isFinite(yieldEvery) ? Math.max(1, Math.floor(yieldEvery)) : 50;
   const records: SourceRecord[] = [];
   const blockIds = new Map<HTMLElement, string>();
   const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);

@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { detectMainContent } from '../../src/content/main-content';
+import { detectMainContent, detectMainContentAsync } from '../../src/content/main-content';
 
 describe('detectMainContent', () => {
   afterEach(() => {
     document.body.innerHTML = '';
+    vi.restoreAllMocks();
   });
 
   it('prefers semantic article content over navigation and footer text', () => {
@@ -37,5 +38,46 @@ describe('detectMainContent', () => {
   it('does not fall back to body when no credible main content exists', () => {
     document.body.innerHTML = '<nav><a href="#">Home</a><a href="#">Account</a></nav>';
     expect(detectMainContent(document)).toBeUndefined();
+  });
+
+  it('time-slices detection for a large document and returns the same semantic root', async () => {
+    document.body.innerHTML = `
+      <main id="large-story">
+        <h1>A large English documentation page</h1>
+        ${Array.from(
+          { length: 600 },
+          (_value, index) =>
+            `<p>Paragraph ${index} contains enough English text to exercise time-sliced content scoring.</p>`,
+        ).join('')}
+      </main>
+    `;
+    const timeoutSpy = vi.spyOn(window, 'setTimeout');
+
+    const detection = await detectMainContentAsync(document, { yieldEvery: 50 });
+
+    expect(detection?.root.id).toBe('large-story');
+    expect(timeoutSpy.mock.calls.length).toBeGreaterThan(10);
+  });
+
+  it('abandons time-sliced detection when the page session generation changes', async () => {
+    document.body.innerHTML = `
+      <main>
+        ${Array.from(
+          { length: 20 },
+          (_value, index) => `<p>Cancellable paragraph ${index} contains English text.</p>`,
+        ).join('')}
+      </main>
+    `;
+    let checks = 0;
+
+    await expect(
+      detectMainContentAsync(document, {
+        yieldEvery: 1,
+        shouldContinue: () => {
+          checks += 1;
+          return checks < 4;
+        },
+      }),
+    ).resolves.toBeUndefined();
   });
 });

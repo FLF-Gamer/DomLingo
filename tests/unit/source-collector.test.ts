@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   applyTranslations,
   collectPageSources,
+  collectPageSourcesAsync,
   restoreOriginals,
   splitLongSourceText,
 } from '../../src/content/source-collector';
@@ -10,6 +11,7 @@ import {
 describe('page source collection and DOM transactions', () => {
   afterEach(() => {
     document.body.innerHTML = '';
+    vi.restoreAllMocks();
   });
 
   it('collects text and whitelisted attributes while excluding unsafe content', () => {
@@ -155,4 +157,18 @@ describe('page source collection and DOM transactions', () => {
     expect(document.querySelector('#name-rule code')?.textContent).toBe('a-z');
     expect(document.querySelector('#license-row code')?.textContent).toBe('license');
   });
+
+  it('time-slices collection across 5,000 candidate text nodes', async () => {
+    document.body.innerHTML = `<main id="root">${Array.from(
+      { length: 5_000 },
+      (_value, index) => `<span>Candidate English text ${index}.</span>`,
+    ).join('')}</main>`;
+    const root = document.querySelector<HTMLElement>('#root')!;
+    const timeoutSpy = vi.spyOn(window, 'setTimeout');
+
+    const collected = await collectPageSourcesAsync(root, 'large-page', 50);
+
+    expect(collected.records).toHaveLength(5_000);
+    expect(timeoutSpy.mock.calls.length).toBeGreaterThan(100);
+  }, 15_000);
 });

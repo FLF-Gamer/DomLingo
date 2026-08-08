@@ -1,4 +1,5 @@
 import type { ContentCommandMessage } from '../messaging/protocol';
+import { monitorPageLifecycle } from '../content/page-lifecycle';
 import { TranslationProgressOverlay } from '../content/progress-overlay';
 import { PageTranslationSession } from '../content/translation-session';
 
@@ -9,6 +10,7 @@ export default defineUnlistedScript(() => {
     onRestore: () => session.restore(),
   });
   const session = new PageTranslationSession(document, (status) => overlay.update(status));
+  monitorPageLifecycle(window, () => session.invalidateForNavigation());
 
   chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (sender.id !== chrome.runtime.id || typeof message !== 'object' || message === null) {

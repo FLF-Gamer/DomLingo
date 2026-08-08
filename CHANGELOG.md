@@ -29,3 +29,5 @@ interfaces and stored data formats may still change.
 - A saved 1–3 request concurrency control for provider compatibility testing.
 - Conservative 2,000-character/10-segment batches with extra completion-token reserve.
 - Atomic semantic-block DOM commits for paragraphs, list items, and table rows, including cached partial results across failed-node retries.
+- Automatic request cancellation on tab close, reload, cross-document navigation, pagehide, and SPA route invalidation without adding broad tab permissions.
+- Time-sliced main-content scoring and source collection with 5,000-node responsiveness regression coverage.

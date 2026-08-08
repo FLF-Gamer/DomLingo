@@ -11,6 +11,17 @@ test('Chrome build output exists before extension smoke tests run', () => {
   );
 });
 
+test('tab lifecycle support does not add broad Chrome permissions', () => {
+  const manifestPath = resolve(process.cwd(), '.output/chrome-mv3/manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    permissions?: string[];
+  };
+
+  expect(manifest.permissions).toEqual(['activeTab', 'scripting', 'storage']);
+  expect(manifest.permissions).not.toContain('tabs');
+  expect(manifest.permissions).not.toContain('webNavigation');
+});
+
 test('extension pages do not preload shared chunks across Chrome worlds', () => {
   for (const page of ['popup.html', 'options.html']) {
     const htmlPath = resolve(process.cwd(), '.output/chrome-mv3', page);

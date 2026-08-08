@@ -116,6 +116,118 @@ describe('PageTranslationSession', () => {
     expect(document.querySelector('main')?.textContent).toBe(originalText);
   });
 
+  it('invalidates a navigating document and can translate the replacement page', async () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>An old route with pending translation</h1>
+        <p>This response must not be written after client-side navigation.</p>
+      </main>
+    `;
+    let pendingMessage: TranslateBatchMessage | undefined;
+    let resolvePending: ((response: unknown) => void) | undefined;
+    const pendingResponse = new Promise((resolve) => {
+      resolvePending = resolve;
+    });
+    let usePendingResponse = true;
+    const successfulResponse = (message: TranslateBatchMessage) => ({
+      ok: true,
+      result: {
+        translations: message.payload.blocks.flatMap((block) =>
+          block.segments.map((segment) => ({ id: segment.id, text: '新页面译文' })),
+        ),
+        failedIds: [],
+        failures: [],
+      },
+    });
+    const sendMessage = vi.fn((message: { type?: string }) => {
+      if (message.type !== 'TRANSLATE_BATCH') return Promise.resolve({ ok: true });
+      const batch = message as TranslateBatchMessage;
+      if (usePendingResponse) {
+        pendingMessage = batch;
+        return pendingResponse;
+      }
+      return Promise.resolve(successfulResponse(batch));
+    });
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+
+    const session = new PageTranslationSession(document);
+    session.start({ batchCharacterLimit: 2_000, concurrency: 1 });
+    await vi.waitFor(() => expect(pendingMessage).toBeDefined());
+    session.invalidateForNavigation();
+    expect(session.getStatus()).toMatchObject({ state: 'stopped', total: 0 });
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'CANCEL_SESSION' }));
+
+    document.body.innerHTML = `
+      <main>
+        <h1>A replacement route ready for translation</h1>
+        <p>This new route should start a fresh translation generation.</p>
+      </main>
+    `;
+    usePendingResponse = false;
+    session.start({ batchCharacterLimit: 2_000, concurrency: 1 });
+    await vi.waitFor(() => expect(session.getStatus().state).toBe('completed'));
+    expect(document.querySelector('main')?.textContent).toContain('新页面译文');
+
+    resolvePending?.(successfulResponse(pendingMessage!));
+    await Promise.resolve();
+    expect(document.querySelector('main')?.textContent).not.toContain('old route');
+  });
+
+  it('clears a manually stopped session when the page navigates', async () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>An article stopped before navigation</h1>
+        <p>This old document keeps collected records until its route changes.</p>
+      </main>
+    `;
+    let pendingMessage: TranslateBatchMessage | undefined;
+    let resolvePending: ((response: unknown) => void) | undefined;
+    const pendingResponse = new Promise((resolve) => {
+      resolvePending = resolve;
+    });
+    let usePendingResponse = true;
+    const sendMessage = vi.fn((message: { type?: string }) => {
+      if (message.type !== 'TRANSLATE_BATCH') return Promise.resolve({ ok: true });
+      const batch = message as TranslateBatchMessage;
+      if (usePendingResponse) {
+        pendingMessage = batch;
+        return pendingResponse;
+      }
+      return Promise.resolve({
+        ok: true,
+        result: {
+          translations: batch.payload.blocks.flatMap((block) =>
+            block.segments.map((segment) => ({ id: segment.id, text: '停止后导航的新译文' })),
+          ),
+          failedIds: [],
+          failures: [],
+        },
+      });
+    });
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+
+    const session = new PageTranslationSession(document);
+    session.start({ batchCharacterLimit: 2_000, concurrency: 1 });
+    await vi.waitFor(() => expect(pendingMessage).toBeDefined());
+    session.stop();
+    session.invalidateForNavigation();
+
+    document.body.innerHTML = `
+      <main>
+        <h1>A new route after the stopped session</h1>
+        <p>This document must be collected as a completely fresh translation session.</p>
+      </main>
+    `;
+    usePendingResponse = false;
+    session.start({ batchCharacterLimit: 2_000, concurrency: 1 });
+    await vi.waitFor(() => expect(session.getStatus().state).toBe('completed'));
+    expect(document.querySelector('main')?.textContent).toContain('停止后导航的新译文');
+
+    resolvePending?.({ ok: false, code: 'CANCELLED', message: '旧请求已取消。' });
+    await Promise.resolve();
+    expect(session.getStatus().state).toBe('completed');
+  });
+
   it('does not start translation after the user stops during a time-sliced scan', async () => {
     document.body.innerHTML = `<main><h1>A large cancellable article</h1>${Array.from(
       { length: 300 },

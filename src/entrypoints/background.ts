@@ -10,6 +10,8 @@ import {
   type TranslateBatchResponse,
   type TranslationControlResponse,
 } from '../messaging/protocol';
+import { SessionRequestRegistry } from '../background/session-request-registry';
+import { registerTabLifecycleCancellation } from '../background/tab-lifecycle';
 import { validateProviderEndpoint } from '../providers/endpoint';
 import {
   detectOpenAICompatibleStructuredOutput,
@@ -25,8 +27,7 @@ import { retryProviderRequest } from '../translation/retry';
 
 const TRUSTED_CONTEXTS = { accessLevel: 'TRUSTED_CONTEXTS' } as const;
 const CONTENT_SCRIPT_FILE = 'domlingo-content.js';
-const activeRequests = new Map<string, Set<AbortController>>();
-const sessionTabs = new Map<string, number>();
+const requestRegistry = new SessionRequestRegistry();
 
 const IDLE_PAGE_STATUS: PageTranslationStatus = {
   state: 'idle',
@@ -167,32 +168,12 @@ async function handlePopupControl(
   return success(await sendContentMessage(message.tabId, command));
 }
 
-function registerRequest(sessionId: string, tabId: number, controller: AbortController): boolean {
-  const existingTabId = sessionTabs.get(sessionId);
-  if (existingTabId !== undefined && existingTabId !== tabId) return false;
-
-  sessionTabs.set(sessionId, tabId);
-  const controllers = activeRequests.get(sessionId) ?? new Set<AbortController>();
-  controllers.add(controller);
-  activeRequests.set(sessionId, controllers);
-  return true;
-}
-
-function unregisterRequest(sessionId: string, controller: AbortController): void {
-  const controllers = activeRequests.get(sessionId);
-  controllers?.delete(controller);
-  if (controllers?.size === 0) {
-    activeRequests.delete(sessionId);
-    sessionTabs.delete(sessionId);
-  }
-}
-
 async function handleTranslateBatch(
   message: TranslateBatchMessage,
   tabId: number,
 ): Promise<TranslateBatchResponse> {
   const controller = new AbortController();
-  if (!registerRequest(message.payload.sessionId, tabId, controller)) {
+  if (!requestRegistry.register(message.payload.sessionId, tabId, controller)) {
     return { ok: false, code: 'INVALID_REQUEST', message: '翻译会话来源无效。' };
   }
 
@@ -237,20 +218,17 @@ async function handleTranslateBatch(
     }
     return { ok: false, code: 'NETWORK_ERROR', message: '无法连接模型服务。' };
   } finally {
-    unregisterRequest(message.payload.sessionId, controller);
+    requestRegistry.unregister(message.payload.sessionId, controller);
   }
-}
-
-function cancelSession(sessionId: string, tabId: number): void {
-  if (sessionTabs.get(sessionId) !== tabId) return;
-  for (const controller of activeRequests.get(sessionId) ?? []) controller.abort();
-  activeRequests.delete(sessionId);
-  sessionTabs.delete(sessionId);
 }
 
 export default defineBackground(() => {
   void restrictStorageAccess().catch((error: unknown) => {
     console.error('[DomLingo] Unable to restrict extension storage access.', error);
+  });
+
+  registerTabLifecycleCancellation(chrome.tabs, (tabId) => {
+    requestRegistry.cancelTab(tabId);
   });
 
   chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
@@ -278,7 +256,7 @@ export default defineBackground(() => {
     }
 
     if (contentTabId !== undefined && isCancelSessionMessage(message)) {
-      cancelSession(message.sessionId, contentTabId);
+      requestRegistry.cancelSession(message.sessionId, contentTabId);
       sendResponse({ ok: true });
     }
 
