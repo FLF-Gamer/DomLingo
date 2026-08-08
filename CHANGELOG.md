@@ -16,3 +16,5 @@ interfaces and stored data formats may still change.
 - Device-encrypted local API key persistence with trusted session recovery.
 - Granted API origin management and permission revocation in Options.
 - Provider, permission, credential encryption, and Ollama-compatible fixture coverage.
+- Initial static-page main-content detection, safe source collection, translation, and restore flow.
+- Popup controls for on-demand translation, progress polling, stopping, and original-text recovery.

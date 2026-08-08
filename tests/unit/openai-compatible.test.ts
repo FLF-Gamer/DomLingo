@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { testOpenAICompatibleConnection } from '../../src/providers/openai-compatible';
+import {
+  testOpenAICompatibleConnection,
+  translateOpenAICompatible,
+} from '../../src/providers/openai-compatible';
 
 const config = {
   providerId: 'custom' as const,
@@ -66,5 +69,63 @@ describe('testOpenAICompatibleConnection', () => {
     await expect(
       testOpenAICompatibleConnection(config, { fetchImpl, timeoutMs: 1 }),
     ).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' });
+  });
+});
+
+describe('translateOpenAICompatible', () => {
+  const blocks = [
+    {
+      id: 'block-1',
+      context: 'A greeting shown in an article.',
+      segments: [{ id: 'source-1', text: 'Hello world.' }],
+    },
+  ];
+
+  it('sends protected translation instructions and validates the model JSON', async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      expect(body.messages[0]?.role).toBe('system');
+      expect(body.messages[0]?.content).toContain('untrusted data');
+      expect(JSON.parse(body.messages[1]!.content)).toMatchObject({
+        targetLanguage: 'zh-CN',
+        blocks,
+      });
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  translations: [{ id: 'source-1', text: '你好，世界。' }],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as typeof fetch;
+
+    await expect(
+      translateOpenAICompatible(config, blocks, 'zh-CN', '', { fetchImpl }),
+    ).resolves.toEqual({
+      translations: [{ id: 'source-1', text: '你好，世界。' }],
+      failedIds: [],
+    });
+  });
+
+  it('maps a non-JSON HTTP success body to an invalid provider response', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response('not-json', { status: 200, headers: { 'Content-Type': 'text/plain' } }),
+    ) as typeof fetch;
+
+    await expect(
+      translateOpenAICompatible(config, blocks, 'zh-CN', '', { fetchImpl }),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
 });

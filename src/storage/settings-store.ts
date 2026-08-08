@@ -28,7 +28,7 @@ export const DEFAULT_SYNCED_SETTINGS: SyncedSettings = {
   targetLanguage: 'zh-CN',
   customPrompt: '',
   promptVersion: '1',
-  batchCharacterLimit: 6_000,
+  batchCharacterLimit: 4_000,
   concurrency: 3,
   dynamicTranslationEnabled: true,
   cacheEnabled: true,
