@@ -82,7 +82,7 @@ describe('static M2 fixtures', () => {
     expect(sourceText).not.toContain('Documentation navigation');
   });
 
-  it('keeps inline code out of segments but includes it in the surrounding context', () => {
+  it('keeps inline code out of segments but translates its surrounding documentation text', () => {
     loadFixture('documentation-page.html');
     const root = detectMainContent(document)!.root;
     const collected = collectPageSources(root, 'inline-code');
@@ -92,5 +92,25 @@ describe('static M2 fixtures', () => {
 
     expect(inlineBlock?.context).toContain('The required name field');
     expect(inlineBlock?.segments.map((segment) => segment.text).join(' ')).not.toContain('name');
+
+    const directoryBlock = collected.blocks.find((block) =>
+      block.context.includes('A skill is a directory containing'),
+    );
+    expect(directoryBlock?.context).toContain(
+      'A skill is a directory containing, at minimum, a SKILL.md file:',
+    );
+    expect(directoryBlock?.segments.map((segment) => segment.text).join(' ')).toContain(
+      'A skill is a directory containing, at minimum, a',
+    );
+
+    const frontmatterBlock = collected.blocks.find((block) =>
+      block.context.includes('file must contain YAML frontmatter'),
+    );
+    expect(frontmatterBlock?.context).toContain(
+      'The SKILL.md file must contain YAML frontmatter followed by Markdown content.',
+    );
+    expect(frontmatterBlock?.segments.map((segment) => segment.text).join(' ')).toContain(
+      'file must contain YAML frontmatter followed by Markdown content.',
+    );
   });
 });

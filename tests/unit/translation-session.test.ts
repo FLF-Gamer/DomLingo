@@ -169,4 +169,120 @@ describe('PageTranslationSession', () => {
     expect(session.getStatus().message).toContain('服务限流 2');
     expect(session.getStatus().failureDetails.MISSING_ID).toBeUndefined();
   });
+
+  it('buffers concurrent responses and writes batches in page order', async () => {
+    document.body.innerHTML = `<main>${Array.from(
+      { length: 30 },
+      (_value, index) => `<p>Ordered paragraph ${index + 1} contains translatable English.</p>`,
+    ).join('')}</main>`;
+    const originalText = document.querySelector('main')!.textContent;
+    const statusSnapshots: number[] = [];
+    const translatedParagraphSnapshots: number[][] = [];
+    const messages: TranslateBatchMessage[] = [];
+    let resolveFirst: ((response: unknown) => void) | undefined;
+    const firstResponse = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+    const responseFor = (message: TranslateBatchMessage) => ({
+      ok: true,
+      result: {
+        translations: message.payload.blocks.flatMap((block) =>
+          block.segments.map((segment) => ({ id: segment.id, text: `译文:${segment.text}` })),
+        ),
+        failedIds: [],
+        failures: [],
+      },
+    });
+    const sendMessage = vi.fn((message: { type?: string }) => {
+      if (message.type !== 'TRANSLATE_BATCH') return Promise.resolve({ ok: true });
+      const batch = message as TranslateBatchMessage;
+      messages.push(batch);
+      return messages.length === 1 ? firstResponse : Promise.resolve(responseFor(batch));
+    });
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+
+    const session = new PageTranslationSession(document, (status) => {
+      if (status.state === 'translating') {
+        statusSnapshots.push(status.translated);
+        translatedParagraphSnapshots.push(
+          [...document.querySelectorAll('p')].flatMap((paragraph, index) =>
+            paragraph.textContent?.startsWith('译文:') ? [index] : [],
+          ),
+        );
+      }
+    });
+    session.start({ batchCharacterLimit: 2_000, concurrency: 3 });
+    await vi.waitFor(() => expect(messages.length).toBeGreaterThan(1));
+    await Promise.resolve();
+
+    expect(document.querySelector('main')?.textContent).toBe(originalText);
+    resolveFirst?.(responseFor(messages[0]!));
+    await vi.waitFor(() => expect(session.getStatus().state).toBe('completed'));
+
+    const committed = statusSnapshots.filter((count) => count > 0);
+    expect(committed).toEqual([...committed].sort((left, right) => left - right));
+    for (const snapshot of translatedParagraphSnapshots) {
+      expect(snapshot).toEqual(Array.from({ length: snapshot.length }, (_value, index) => index));
+    }
+    expect(session.getStatus().translated).toBe(30);
+  });
+
+  it('retries only records that are still untranslated', async () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>A retryable article title</h1>
+        <p>The first retryable paragraph.</p>
+        <p>The second retryable paragraph.</p>
+      </main>
+    `;
+    const messages: TranslateBatchMessage[] = [];
+    let successfulId = '';
+    const sendMessage = vi.fn(async (message: { type?: string }) => {
+      if (message.type !== 'TRANSLATE_BATCH') return { ok: true };
+      const batch = message as TranslateBatchMessage;
+      messages.push(batch);
+      const segments = batch.payload.blocks.flatMap((block) => block.segments);
+      if (messages.length === 1) {
+        successfulId = segments[0]!.id;
+        return {
+          ok: true,
+          result: {
+            translations: [{ id: successfulId, text: '首次成功译文。' }],
+            failedIds: segments.slice(1).map((segment) => segment.id),
+            failures: segments
+              .slice(1)
+              .map((segment) => ({ id: segment.id, reason: 'INVALID_RESPONSE' as const })),
+          },
+        };
+      }
+      return responseForRetry(batch);
+    });
+    const responseForRetry = (message: TranslateBatchMessage) => ({
+      ok: true,
+      result: {
+        translations: message.payload.blocks.flatMap((block) =>
+          block.segments.map((segment) => ({ id: segment.id, text: '重试成功译文。' })),
+        ),
+        failedIds: [],
+        failures: [],
+      },
+    });
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+
+    const session = new PageTranslationSession(document);
+    session.start({ batchCharacterLimit: 4_000, concurrency: 1 });
+    await vi.waitFor(() => expect(session.getStatus().state).toBe('completed'));
+    expect(session.getStatus()).toMatchObject({ translated: 1, failed: 2 });
+
+    session.retryFailed();
+    expect(session.getStatus().state).toBe('translating');
+    await vi.waitFor(() => expect(session.getStatus().state).toBe('completed'));
+    expect(session.getStatus().failed).toBe(0);
+    expect(session.getStatus().translated).toBe(3);
+    const retryIds = messages[1]!.payload.blocks.flatMap((block) =>
+      block.segments.map((segment) => segment.id),
+    );
+    expect(retryIds).not.toContain(successfulId);
+    expect(retryIds).toHaveLength(2);
+  });
 });

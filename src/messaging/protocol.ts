@@ -39,6 +39,12 @@ export interface StartTranslationMessage {
   tabId: number;
 }
 
+export interface RetryFailedTranslationMessage {
+  version: 1;
+  type: 'RETRY_FAILED_TRANSLATION';
+  tabId: number;
+}
+
 export interface StopTranslationMessage {
   version: 1;
   type: 'STOP_TRANSLATION';
@@ -58,7 +64,11 @@ export interface GetTabStatusMessage {
 }
 
 export type PopupControlMessage =
-  StartTranslationMessage | StopTranslationMessage | RestoreOriginalMessage | GetTabStatusMessage;
+  | StartTranslationMessage
+  | RetryFailedTranslationMessage
+  | StopTranslationMessage
+  | RestoreOriginalMessage
+  | GetTabStatusMessage;
 
 export interface TranslateBatchMessage {
   version: 1;
@@ -75,6 +85,15 @@ export interface CancelSessionMessage {
 export interface StartContentTranslationMessage {
   version: 1;
   type: 'CONTENT_START_TRANSLATION';
+  options: {
+    batchCharacterLimit: number;
+    concurrency: number;
+  };
+}
+
+export interface RetryFailedContentTranslationMessage {
+  version: 1;
+  type: 'CONTENT_RETRY_FAILED';
   options: {
     batchCharacterLimit: number;
     concurrency: number;
@@ -103,6 +122,7 @@ export interface PingContentMessage {
 
 export type ContentCommandMessage =
   | StartContentTranslationMessage
+  | RetryFailedContentTranslationMessage
   | StopContentTranslationMessage
   | RestoreContentOriginalMessage
   | GetContentStatusMessage
@@ -151,9 +171,13 @@ export function isPopupControlMessage(value: unknown): value is PopupControlMess
   if (!isObject(value)) return false;
   return (
     value.version === 1 &&
-    ['START_TRANSLATION', 'STOP_TRANSLATION', 'RESTORE_ORIGINAL', 'GET_TAB_STATUS'].includes(
-      String(value.type),
-    ) &&
+    [
+      'START_TRANSLATION',
+      'RETRY_FAILED_TRANSLATION',
+      'STOP_TRANSLATION',
+      'RESTORE_ORIGINAL',
+      'GET_TAB_STATUS',
+    ].includes(String(value.type)) &&
     typeof value.tabId === 'number' &&
     Number.isInteger(value.tabId) &&
     value.tabId >= 0

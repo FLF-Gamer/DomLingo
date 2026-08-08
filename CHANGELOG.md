@@ -22,3 +22,5 @@ interfaces and stored data formats may still change.
 - Long-node splitting, time-sliced source collection, partial-failure handling, and cancellation guards.
 - Documentation utility-control exclusion and inline-code-aware translation context.
 - Segment-count batch limits, transient provider retries, and categorized node failure reporting.
+- Ordered DOM commits for concurrent batches, fenced-JSON normalization, and one automatic response-format repair.
+- Retry-failed controls in the Popup and page overlay that preserve successful translations.

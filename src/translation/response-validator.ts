@@ -33,6 +33,20 @@ function containsUnsafeControlCharacter(value: string): boolean {
   return false;
 }
 
+function parseResponseJson(rawContent: string): unknown {
+  try {
+    return JSON.parse(rawContent);
+  } catch {
+    const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(rawContent.trim());
+    if (!fenced?.[1]) return undefined;
+    try {
+      return JSON.parse(fenced[1]);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
 export function validateTranslationResponse(
   rawContent: string,
   blocks: TranslationBlock[],
@@ -48,12 +62,7 @@ export function validateTranslationResponse(
     return failAll('INVALID_RESPONSE');
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(rawContent);
-  } catch {
-    return failAll('INVALID_RESPONSE');
-  }
+  const parsed = parseResponseJson(rawContent);
 
   if (!isObject(parsed) || !Array.isArray(parsed.translations)) {
     return failAll('INVALID_RESPONSE');

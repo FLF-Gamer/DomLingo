@@ -18,7 +18,7 @@ export interface TranslationPromptInput {
 }
 
 export interface ChatMessage {
-  role: 'system' | 'user';
+  role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
@@ -36,6 +36,21 @@ export function buildTranslationMessages(input: TranslationPromptInput): ChatMes
         targetLanguage: input.targetLanguage,
         blocks: input.blocks,
       }),
+    },
+  ];
+}
+
+export function buildTranslationRepairMessages(
+  input: TranslationPromptInput,
+  invalidResponse: string,
+): ChatMessage[] {
+  return [
+    ...buildTranslationMessages(input),
+    { role: 'assistant', content: invalidResponse.slice(0, 20_000) },
+    {
+      role: 'user',
+      content:
+        'Your previous response could not be parsed. Return the complete corrected JSON object now. Include every original segment ID exactly once, with no Markdown fence, prose, or extra keys.',
     },
   ];
 }

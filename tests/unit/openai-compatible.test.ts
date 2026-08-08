@@ -129,4 +129,48 @@ describe('translateOpenAICompatible', () => {
       translateOpenAICompatible(config, blocks, 'zh-CN', '', { fetchImpl }),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
+
+  it('requests one format repair when the model output is not parseable JSON', async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const repairing = request.messages.at(-1)?.content.includes('could not be parsed') ?? false;
+      const content = repairing
+        ? JSON.stringify({ translations: [{ id: 'source-1', text: '修复后的译文。' }] })
+        : 'This response is not JSON.';
+      return new Response(
+        JSON.stringify({ choices: [{ message: { role: 'assistant', content } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as typeof fetch;
+
+    await expect(
+      translateOpenAICompatible(config, blocks, 'zh-CN', '', { fetchImpl }),
+    ).resolves.toMatchObject({
+      translations: [{ id: 'source-1', text: '修复后的译文。' }],
+      failures: [],
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops after one format repair when the repaired output is still invalid', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { role: 'assistant', content: 'Still not JSON.' } }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    ) as typeof fetch;
+
+    await expect(
+      translateOpenAICompatible(config, blocks, 'zh-CN', '', { fetchImpl }),
+    ).resolves.toMatchObject({
+      translations: [],
+      failures: [{ id: 'source-1', reason: 'INVALID_RESPONSE' }],
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
 });

@@ -463,9 +463,10 @@ const REQUEST_TIMEOUT_MS = 60_000;
 规则：
 
 - 字符限制计算实际发送的 segment 和必要 context；
-- 单批最多包含 40 个 segment ID，避免短碎片过多导致返回 JSON 截断；
+- 单批最多包含 20 个 segment ID，降低短碎片较多时返回 JSON 被截断或偏离协议的概率；
 - 单个块超过限制时才允许拆分；
 - 并发以页面会话为单位；
+- Provider 请求可以并发完成，但 Content Script 按原始批次索引缓冲结果并依次写回，前一批未完成时后一批不得先修改页面；
 - 429、502、503、504 和网络暂时失败可以重试；
 - 400、401、403、404 等配置性错误不自动重试；
 - 重试使用指数退避和随机抖动，并遵守服务端 `Retry-After`；
@@ -569,7 +570,7 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 ### 13.2 验证流水线
 
 1. 限制响应最大字节数；
-2. 解析 JSON；
+2. 解析 JSON；若响应整体仅由一个完整 JSON 代码围栏包裹，先移除围栏再解析，围栏之外出现说明文字仍拒绝；
 3. 验证顶层结构；
 4. 检查 ID 是否属于当前批次；
 5. 拒绝重复 ID；
@@ -580,7 +581,9 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 
 Content Script 按节点汇总 `INVALID_RESPONSE`、`MISSING_ID`、`DUPLICATE_ID`、`INVALID_TEXT`、Provider 错误和 `STALE_DOM`，Popup 与页面浮层显示分类数量。批次级 Provider 错误不得伪装成模型漏回 ID。
 
-整个批次无法解析时允许进行一次“格式修复重试”；修复请求仍只发送该批次，不发送更多网页内容。
+整个批次无法解析时自动进行一次“格式修复重试”；修复请求携带原批次和该次无效响应，要求模型补回全部 ID 的纯 JSON，不发送更多网页内容，也不进行第二次格式修复。
+
+页面会话保存原始 `records` 与 `blocks`。翻译结束或停止后，Popup 和页面浮层在存在未写回节点时显示“重试失败内容”；重试只筛选 `appliedValue` 为空的节点和 segment，保留已成功译文，并建立新的 session ID 以隔离上一轮迟到响应。
 
 ## 14. DOM 写回与恢复
 

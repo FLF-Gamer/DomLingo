@@ -5,6 +5,7 @@ import { PageTranslationSession } from '../content/translation-session';
 export default defineUnlistedScript(() => {
   const overlay = new TranslationProgressOverlay(document, {
     onStop: () => session.stop(),
+    onRetry: () => session.retryFailed(),
     onRestore: () => session.restore(),
   });
   const session = new PageTranslationSession(document, (status) => overlay.update(status));
@@ -21,12 +22,17 @@ export default defineUnlistedScript(() => {
         sendResponse(session.getStatus());
         return false;
       case 'CONTENT_START_TRANSLATION':
+      case 'CONTENT_RETRY_FAILED':
         if (
           command.options &&
           typeof command.options.batchCharacterLimit === 'number' &&
           typeof command.options.concurrency === 'number'
         ) {
-          session.start(command.options);
+          if (command.type === 'CONTENT_START_TRANSLATION') {
+            session.start(command.options);
+          } else {
+            session.retryFailed(command.options);
+          }
           sendResponse(session.getStatus());
         }
         return false;

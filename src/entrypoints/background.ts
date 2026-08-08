@@ -112,7 +112,7 @@ async function handlePopupControl(
     return success((await getContentStatus(message.tabId)) ?? IDLE_PAGE_STATUS);
   }
 
-  if (message.type === 'START_TRANSLATION') {
+  if (message.type === 'START_TRANSLATION' || message.type === 'RETRY_FAILED_TRANSLATION') {
     const endpoint = validateProviderEndpoint(settings.endpoint);
     if (!endpoint.ok || !settings.model.trim()) {
       return { ok: false, code: 'CONFIG_REQUIRED', message: '请先完成模型服务配置。' };
@@ -135,16 +135,18 @@ async function handlePopupControl(
 
     try {
       await ensureContentScript(message.tabId);
-      return success(
-        await sendContentMessage(message.tabId, {
-          version: 1,
-          type: 'CONTENT_START_TRANSLATION',
-          options: {
-            batchCharacterLimit: settings.batchCharacterLimit,
-            concurrency: settings.concurrency,
-          },
-        }),
-      );
+      const contentMessage: ContentCommandMessage = {
+        version: 1,
+        type:
+          message.type === 'START_TRANSLATION'
+            ? 'CONTENT_START_TRANSLATION'
+            : 'CONTENT_RETRY_FAILED',
+        options: {
+          batchCharacterLimit: settings.batchCharacterLimit,
+          concurrency: settings.concurrency,
+        },
+      };
+      return success(await sendContentMessage(message.tabId, contentMessage));
     } catch {
       return {
         ok: false,

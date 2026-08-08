@@ -39,6 +39,9 @@ describe('isTestProviderMessage', () => {
 describe('translation message guards', () => {
   it('accepts bounded popup controls and translation batches', () => {
     expect(isPopupControlMessage({ version: 1, type: 'START_TRANSLATION', tabId: 12 })).toBe(true);
+    expect(isPopupControlMessage({ version: 1, type: 'RETRY_FAILED_TRANSLATION', tabId: 12 })).toBe(
+      true,
+    );
     expect(
       isTranslateBatchMessage({
         version: 1,

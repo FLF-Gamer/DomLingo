@@ -63,13 +63,36 @@ describe('validateTranslationResponse', () => {
         blocks,
       ),
     ).toMatchObject({ translations: [], failedIds: ['source-1', 'source-2'] });
-    expect(validateTranslationResponse('```json\n{}\n```', blocks)).toMatchObject({
+    expect(validateTranslationResponse('not-json', blocks)).toMatchObject({
       failedIds: ['source-1', 'source-2'],
       failures: [
         { id: 'source-1', reason: 'INVALID_RESPONSE' },
         { id: 'source-2', reason: 'INVALID_RESPONSE' },
       ],
     });
+  });
+
+  it('safely accepts a single JSON code fence without accepting surrounding prose', () => {
+    const fenced = validateTranslationResponse(
+      `\`\`\`json\n${JSON.stringify({
+        translations: [
+          { id: 'source-1', text: '你好，世界。' },
+          { id: 'source-2', text: '阅读指南。' },
+        ],
+      })}\n\`\`\``,
+      blocks,
+    );
+
+    expect(fenced.failedIds).toEqual([]);
+    expect(
+      validateTranslationResponse(
+        `Here is the result:\n${JSON.stringify({ translations: [] })}`,
+        blocks,
+      ).failures,
+    ).toEqual([
+      { id: 'source-1', reason: 'INVALID_RESPONSE' },
+      { id: 'source-2', reason: 'INVALID_RESPONSE' },
+    ]);
   });
 
   it('distinguishes missing and duplicate IDs', () => {

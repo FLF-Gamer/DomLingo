@@ -1,6 +1,6 @@
 import { ProviderRequestError, mapProviderHttpStatus, parseRetryAfterMs } from './provider-error';
 import type { ProviderConfig } from './types';
-import { buildTranslationMessages } from '../translation/prompt';
+import { buildTranslationMessages, buildTranslationRepairMessages } from '../translation/prompt';
 import { validateTranslationResponse } from '../translation/response-validator';
 import type { TranslationBatchResult, TranslationBlock } from '../translation/types';
 
@@ -91,40 +91,61 @@ export async function translateOpenAICompatible(
   } else {
     options.signal?.addEventListener('abort', abortFromCaller, { once: true });
   }
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  let timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const resetTimeout = (): void => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => controller.abort(), timeoutMs);
+  };
 
   try {
     const headers = new Headers({ 'Content-Type': 'application/json' });
     if (config.apiKey) headers.set('Authorization', `Bearer ${config.apiKey}`);
+    const promptInput = { targetLanguage, blocks, customPrompt } as const;
+    const requestContent = async (messages: ReturnType<typeof buildTranslationMessages>) => {
+      const response = await fetchImpl(config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: config.model,
+          temperature: 0,
+          messages,
+          stream: false,
+        }),
+        signal: controller.signal,
+      });
 
-    const response = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: config.model,
-        temperature: 0,
-        messages: buildTranslationMessages({ targetLanguage, blocks, customPrompt }),
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
+      if (!response.ok) {
+        throw new ProviderRequestError(
+          mapProviderHttpStatus(response.status),
+          parseRetryAfterMs(response.headers.get('Retry-After')),
+        );
+      }
 
-    if (!response.ok) {
-      throw new ProviderRequestError(
-        mapProviderHttpStatus(response.status),
-        parseRetryAfterMs(response.headers.get('Retry-After')),
-      );
-    }
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new ProviderRequestError('INVALID_RESPONSE');
+      }
+      const content = chatCompletionContent(payload);
+      if (content === undefined) throw new ProviderRequestError('INVALID_RESPONSE');
+      return content;
+    };
 
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new ProviderRequestError('INVALID_RESPONSE');
-    }
-    const content = chatCompletionContent(payload);
-    if (content === undefined) throw new ProviderRequestError('INVALID_RESPONSE');
-    return validateTranslationResponse(content, blocks);
+    const content = await requestContent(buildTranslationMessages(promptInput));
+    const result = validateTranslationResponse(content, blocks);
+    const needsFormatRepair =
+      result.translations.length === 0 &&
+      result.failures.length > 0 &&
+      result.failures.every((failure) => failure.reason === 'INVALID_RESPONSE');
+    if (!needsFormatRepair) return result;
+
+    resetTimeout();
+    const repairedContent = await requestContent(
+      buildTranslationRepairMessages(promptInput, content),
+    );
+    return validateTranslationResponse(repairedContent, blocks);
   } catch (error: unknown) {
     if (error instanceof ProviderRequestError) throw error;
     if (error instanceof DOMException && error.name === 'AbortError') {

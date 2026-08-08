@@ -100,6 +100,7 @@ export function PopupApp() {
 
   const isTranslating = status.state === 'scanning' || status.state === 'translating';
   const hasTranslations = status.translated > 0;
+  const hasFailures = status.failed > 0;
   const processed = status.translated + status.failed;
 
   return (
@@ -148,9 +149,11 @@ export function PopupApp() {
             type="button"
             className="primary-button"
             disabled={busy || tabId === undefined}
-            onClick={() => void runAction('START_TRANSLATION')}
+            onClick={() =>
+              void runAction(hasFailures ? 'RETRY_FAILED_TRANSLATION' : 'START_TRANSLATION')
+            }
           >
-            翻译当前页面
+            {hasFailures ? `重试失败内容（${status.failed}）` : '翻译当前页面'}
           </button>
         )}
         <button

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTranslationMessages } from '../../src/translation/prompt';
+import {
+  buildTranslationMessages,
+  buildTranslationRepairMessages,
+} from '../../src/translation/prompt';
 
 describe('translation prompt', () => {
   it('keeps safety rules ahead of custom preferences and serializes webpage text as data', () => {
@@ -24,5 +27,24 @@ describe('translation prompt', () => {
     expect(JSON.parse(messages[1]!.content)).toMatchObject({
       blocks: [{ segments: [{ id: 'source-1' }] }],
     });
+  });
+
+  it('keeps the original request and adds a bounded JSON repair instruction', () => {
+    const messages = buildTranslationRepairMessages(
+      {
+        targetLanguage: 'zh-CN',
+        blocks: [
+          {
+            id: 'block-1',
+            context: 'Context',
+            segments: [{ id: 'source-1', text: 'Translate me.' }],
+          },
+        ],
+      },
+      'invalid model output',
+    );
+
+    expect(messages.map(({ role }) => role)).toEqual(['system', 'user', 'assistant', 'user']);
+    expect(messages.at(-1)?.content).toContain('complete corrected JSON');
   });
 });

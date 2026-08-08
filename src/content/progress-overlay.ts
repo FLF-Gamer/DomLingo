@@ -2,6 +2,7 @@ import type { PageTranslationStatus } from '../messaging/protocol';
 
 export interface ProgressOverlayActions {
   onStop: () => void;
+  onRetry: () => void;
   onRestore: () => void;
 }
 
@@ -11,6 +12,7 @@ export class TranslationProgressOverlay {
   private detailElement: HTMLElement | undefined;
   private progressElement: HTMLElement | undefined;
   private stopButton: HTMLButtonElement | undefined;
+  private retryButton: HTMLButtonElement | undefined;
   private restoreButton: HTMLButtonElement | undefined;
 
   constructor(
@@ -30,6 +32,7 @@ export class TranslationProgressOverlay {
       !this.detailElement ||
       !this.progressElement ||
       !this.stopButton ||
+      !this.retryButton ||
       !this.restoreButton
     ) {
       return;
@@ -51,6 +54,8 @@ export class TranslationProgressOverlay {
     this.detailElement.textContent = status.message;
     this.progressElement.style.width = `${Math.max(0, Math.min(progress, 100))}%`;
     this.stopButton.hidden = !isTranslating;
+    this.retryButton.hidden = isTranslating || status.failed === 0;
+    this.retryButton.textContent = `重试失败内容（${status.failed}）`;
     this.restoreButton.hidden = status.translated === 0;
   }
 
@@ -61,6 +66,7 @@ export class TranslationProgressOverlay {
     this.detailElement = undefined;
     this.progressElement = undefined;
     this.stopButton = undefined;
+    this.retryButton = undefined;
     this.restoreButton = undefined;
   }
 
@@ -108,7 +114,11 @@ export class TranslationProgressOverlay {
     stopButton.type = 'button';
     stopButton.dataset.action = 'stop';
     stopButton.textContent = '停止翻译';
-    actions.append(restoreButton, stopButton);
+    const retryButton = this.document.createElement('button');
+    retryButton.type = 'button';
+    retryButton.dataset.action = 'retry';
+    retryButton.textContent = '重试失败内容';
+    actions.append(restoreButton, retryButton, stopButton);
     panel.append(statusElement, detailElement, track, actions);
     shadow.append(style, panel);
 
@@ -116,8 +126,10 @@ export class TranslationProgressOverlay {
     this.detailElement = detailElement;
     this.progressElement = progressElement;
     this.stopButton = stopButton;
+    this.retryButton = retryButton;
     this.restoreButton = restoreButton;
     stopButton.addEventListener('click', this.actions.onStop);
+    retryButton.addEventListener('click', this.actions.onRetry);
     restoreButton.addEventListener('click', this.actions.onRestore);
 
     this.document.documentElement.append(host);
