@@ -1,4 +1,4 @@
-import { ProviderRequestError, mapProviderHttpStatus } from './provider-error';
+import { ProviderRequestError, mapProviderHttpStatus, parseRetryAfterMs } from './provider-error';
 import type { ProviderConfig } from './types';
 import { buildTranslationMessages } from '../translation/prompt';
 import { validateTranslationResponse } from '../translation/response-validator';
@@ -51,7 +51,12 @@ export async function testOpenAICompatibleConnection(
       signal: controller.signal,
     });
 
-    if (!response.ok) throw new ProviderRequestError(mapProviderHttpStatus(response.status));
+    if (!response.ok) {
+      throw new ProviderRequestError(
+        mapProviderHttpStatus(response.status),
+        parseRetryAfterMs(response.headers.get('Retry-After')),
+      );
+    }
 
     let payload: unknown;
     try {
@@ -81,7 +86,11 @@ export async function translateOpenAICompatible(
   const fetchImpl = options.fetchImpl ?? fetch;
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
-  options.signal?.addEventListener('abort', abortFromCaller, { once: true });
+  if (options.signal?.aborted) {
+    controller.abort();
+  } else {
+    options.signal?.addEventListener('abort', abortFromCaller, { once: true });
+  }
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
 
   try {
@@ -100,7 +109,12 @@ export async function translateOpenAICompatible(
       signal: controller.signal,
     });
 
-    if (!response.ok) throw new ProviderRequestError(mapProviderHttpStatus(response.status));
+    if (!response.ok) {
+      throw new ProviderRequestError(
+        mapProviderHttpStatus(response.status),
+        parseRetryAfterMs(response.headers.get('Retry-After')),
+      );
+    }
 
     let payload: unknown;
     try {

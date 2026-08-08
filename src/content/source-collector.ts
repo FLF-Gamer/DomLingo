@@ -1,6 +1,7 @@
 import type { SourceKind, TranslationBlock, TranslationSegment } from '../translation/types';
 import {
   containsEnglish,
+  isContextExcludedElement,
   isElementVisible,
   isExcludedElement,
   normalizeContext,
@@ -33,6 +34,7 @@ export interface MutationSummary {
   applied: number;
   restored: number;
   stale: number;
+  staleRecordIds: string[];
 }
 
 export function splitLongSourceText(
@@ -91,7 +93,7 @@ function contextForBlock(block: HTMLElement): string {
 
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const parent = (node as Text).parentElement;
-    if (!parent || isExcludedElement(parent) || !isElementVisible(parent)) continue;
+    if (!parent || isContextExcludedElement(parent) || !isElementVisible(parent)) continue;
     const value = node.nodeValue?.trim();
     if (value) values.push(value);
   }
@@ -306,7 +308,7 @@ export function applyTranslations(
   records: SourceRecord[],
   translations: ReadonlyMap<string, string>,
 ): MutationSummary {
-  const summary: MutationSummary = { applied: 0, restored: 0, stale: 0 };
+  const summary: MutationSummary = { applied: 0, restored: 0, stale: 0, staleRecordIds: [] };
 
   for (const record of records) {
     if (record.appliedValue !== undefined) continue;
@@ -314,6 +316,7 @@ export function applyTranslations(
     if (translatedParts.some((part) => part === undefined)) continue;
     if (!isRecordInRoot(record, root) || currentRecordValue(record) !== record.originalValue) {
       summary.stale += 1;
+      summary.staleRecordIds.push(record.id);
       continue;
     }
 
@@ -327,12 +330,13 @@ export function applyTranslations(
 }
 
 export function restoreOriginals(root: HTMLElement, records: SourceRecord[]): MutationSummary {
-  const summary: MutationSummary = { applied: 0, restored: 0, stale: 0 };
+  const summary: MutationSummary = { applied: 0, restored: 0, stale: 0, staleRecordIds: [] };
 
   for (const record of records) {
     if (record.appliedValue === undefined) continue;
     if (!isRecordInRoot(record, root) || currentRecordValue(record) !== record.appliedValue) {
       summary.stale += 1;
+      summary.staleRecordIds.push(record.id);
       continue;
     }
 

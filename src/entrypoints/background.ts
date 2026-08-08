@@ -20,6 +20,7 @@ import { ProviderRequestError } from '../providers/provider-error';
 import type { ProviderTestResponse } from '../providers/types';
 import { getApiKey } from '../storage/api-key-store';
 import { loadSyncedSettings } from '../storage/settings-store';
+import { retryProviderRequest } from '../translation/retry';
 
 const TRUSTED_CONTEXTS = { accessLevel: 'TRUSTED_CONTEXTS' } as const;
 const CONTENT_SCRIPT_FILE = 'domlingo-content.js';
@@ -31,6 +32,7 @@ const IDLE_PAGE_STATUS: PageTranslationStatus = {
   total: 0,
   translated: 0,
   failed: 0,
+  failureDetails: {},
   message: '点击“翻译当前页面”开始。',
 };
 
@@ -199,16 +201,20 @@ async function handleTranslateBatch(
     }
 
     const apiKey = await getApiKey(settings.providerId);
-    const result = await translateOpenAICompatible(
-      {
-        providerId: settings.providerId,
-        endpoint: endpoint.endpoint,
-        model: settings.model.trim(),
-        apiKey,
-      },
-      message.payload.blocks,
-      settings.targetLanguage,
-      settings.customPrompt,
+    const result = await retryProviderRequest(
+      () =>
+        translateOpenAICompatible(
+          {
+            providerId: settings.providerId,
+            endpoint: endpoint.endpoint,
+            model: settings.model.trim(),
+            apiKey,
+          },
+          message.payload.blocks,
+          settings.targetLanguage,
+          settings.customPrompt,
+          { signal: controller.signal },
+        ),
       { signal: controller.signal },
     );
     return { ok: true, result };

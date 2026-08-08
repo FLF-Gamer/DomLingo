@@ -74,7 +74,23 @@ describe('static M2 fixtures', () => {
       .join(' ');
 
     expect(sourceText).not.toContain('fetch(endpoint');
+    expect(sourceText).not.toContain('Report incorrect code');
+    expect(sourceText).not.toContain('Copy the contents from the code block');
+    expect(sourceText).not.toContain('Ask Assistant');
+    expect(sourceText).not.toContain('Copy page');
     expect(sourceText).not.toContain('On this page');
     expect(sourceText).not.toContain('Documentation navigation');
+  });
+
+  it('keeps inline code out of segments but includes it in the surrounding context', () => {
+    loadFixture('documentation-page.html');
+    const root = detectMainContent(document)!.root;
+    const collected = collectPageSources(root, 'inline-code');
+    const inlineBlock = collected.blocks.find((block) =>
+      block.segments.some((segment) => segment.text.includes('The required')),
+    );
+
+    expect(inlineBlock?.context).toContain('The required name field');
+    expect(inlineBlock?.segments.map((segment) => segment.text).join(' ')).not.toContain('name');
   });
 });

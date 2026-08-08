@@ -31,6 +31,7 @@ describe('validateTranslationResponse', () => {
       'source-2',
     ]);
     expect(result.failedIds).toEqual([]);
+    expect(result.failures).toEqual([]);
   });
 
   it('keeps invalid or missing nodes failed without rejecting valid siblings', () => {
@@ -47,6 +48,7 @@ describe('validateTranslationResponse', () => {
 
     expect(result.translations).toEqual([{ id: 'source-1', text: '安全译文。' }]);
     expect(result.failedIds).toEqual(['source-2']);
+    expect(result.failures).toEqual([{ id: 'source-2', reason: 'INVALID_TEXT' }]);
   });
 
   it('rejects duplicate IDs and non-JSON output', () => {
@@ -61,9 +63,29 @@ describe('validateTranslationResponse', () => {
         blocks,
       ),
     ).toMatchObject({ translations: [], failedIds: ['source-1', 'source-2'] });
-    expect(validateTranslationResponse('```json\n{}\n```', blocks).failedIds).toEqual([
-      'source-1',
-      'source-2',
+    expect(validateTranslationResponse('```json\n{}\n```', blocks)).toMatchObject({
+      failedIds: ['source-1', 'source-2'],
+      failures: [
+        { id: 'source-1', reason: 'INVALID_RESPONSE' },
+        { id: 'source-2', reason: 'INVALID_RESPONSE' },
+      ],
+    });
+  });
+
+  it('distinguishes missing and duplicate IDs', () => {
+    const result = validateTranslationResponse(
+      JSON.stringify({
+        translations: [
+          { id: 'source-1', text: '第一条' },
+          { id: 'source-1', text: '重复条目' },
+        ],
+      }),
+      blocks,
+    );
+
+    expect(result.failures).toEqual([
+      { id: 'source-1', reason: 'DUPLICATE_ID' },
+      { id: 'source-2', reason: 'MISSING_ID' },
     ]);
   });
 });

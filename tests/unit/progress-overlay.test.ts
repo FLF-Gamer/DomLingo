@@ -19,6 +19,7 @@ describe('TranslationProgressOverlay', () => {
       total: 10,
       translated: 4,
       failed: 0,
+      failureDetails: {},
       message: '正在翻译 4 / 10…',
     });
 
@@ -31,6 +32,7 @@ describe('TranslationProgressOverlay', () => {
       total: 0,
       translated: 0,
       failed: 0,
+      failureDetails: {},
       message: '已恢复原文。',
     });
     expect(document.querySelector('[data-domlingo-overlay]')).toBeNull();

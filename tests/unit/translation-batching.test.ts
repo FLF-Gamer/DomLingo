@@ -65,4 +65,20 @@ describe('translation batching', () => {
       ),
     ).toBe(true);
   });
+
+  it('limits the number of response IDs even when source fragments are short', () => {
+    const fragmented: TranslationBlock = {
+      id: 'fragmented-block',
+      context: 'A documentation paragraph with many inline fragments.',
+      segments: Array.from({ length: 95 }, (_value, index) => ({
+        id: `fragment-${index + 1}`,
+        text: 'field',
+      })),
+    };
+
+    const batches = buildTranslationBatches([fragmented], 20_000);
+    expect(batches.map((batch) => batch.flatMap((item) => item.segments).length)).toEqual([
+      40, 40, 15,
+    ]);
+  });
 });

@@ -115,6 +115,7 @@ describe('translateOpenAICompatible', () => {
     ).resolves.toEqual({
       translations: [{ id: 'source-1', text: '你好，世界。' }],
       failedIds: [],
+      failures: [],
     });
   });
 

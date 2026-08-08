@@ -4,7 +4,11 @@ import {
   type ProviderErrorCode,
   type ProviderTestResponse,
 } from '../providers/types';
-import type { TranslationBatchPayload, TranslationBatchResult } from '../translation/types';
+import type {
+  TranslationBatchPayload,
+  TranslationBatchResult,
+  TranslationResultFailureReason,
+} from '../translation/types';
 
 export interface TestProviderMessage {
   version: 1;
@@ -15,11 +19,17 @@ export interface TestProviderMessage {
 export type PageTranslationState =
   'idle' | 'scanning' | 'translating' | 'completed' | 'stopped' | 'error';
 
+export type PageTranslationFailureCode =
+  ProviderErrorCode | TranslationResultFailureReason | 'SESSION_CANCELLED' | 'STALE_DOM';
+
+export type PageTranslationFailureDetails = Partial<Record<PageTranslationFailureCode, number>>;
+
 export interface PageTranslationStatus {
   state: PageTranslationState;
   total: number;
   translated: number;
   failed: number;
+  failureDetails: PageTranslationFailureDetails;
   message: string;
 }
 

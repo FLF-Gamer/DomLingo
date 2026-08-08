@@ -44,7 +44,8 @@ export class TranslationProgressOverlay {
       stopped: '翻译已停止',
       error: '翻译遇到问题',
     };
-    const progress = status.total > 0 ? Math.round((status.translated / status.total) * 100) : 0;
+    const processed = status.translated + status.failed;
+    const progress = status.total > 0 ? Math.round((processed / status.total) * 100) : 0;
 
     this.statusElement.textContent = stateLabel[status.state];
     this.detailElement.textContent = status.message;

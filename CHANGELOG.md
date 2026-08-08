@@ -20,3 +20,5 @@ interfaces and stored data formats may still change.
 - Popup controls for on-demand translation, progress polling, stopping, and original-text recovery.
 - Closed-Shadow-DOM page progress overlay with stop and restore controls.
 - Long-node splitting, time-sliced source collection, partial-failure handling, and cancellation guards.
+- Documentation utility-control exclusion and inline-code-aware translation context.
+- Segment-count batch limits, transient provider retries, and categorized node failure reporting.

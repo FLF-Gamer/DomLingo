@@ -12,10 +12,23 @@ const ERROR_MESSAGES: Record<ProviderErrorCode, string> = {
 };
 
 export class ProviderRequestError extends Error {
-  constructor(readonly code: ProviderErrorCode) {
+  constructor(
+    readonly code: ProviderErrorCode,
+    readonly retryAfterMs?: number,
+  ) {
     super(ERROR_MESSAGES[code]);
     this.name = 'ProviderRequestError';
   }
+}
+
+export function parseRetryAfterMs(value: string | null, now = Date.now()): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1_000);
+
+  const retryAt = Date.parse(value);
+  if (!Number.isFinite(retryAt)) return undefined;
+  return Math.max(0, retryAt - now);
 }
 
 export function mapProviderHttpStatus(status: number): ProviderErrorCode {

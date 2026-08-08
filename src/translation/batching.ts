@@ -1,6 +1,7 @@
 import type { TranslationBlock } from './types';
 
 export type TranslationBatch = TranslationBlock[];
+const DEFAULT_MAX_SEGMENTS_PER_BATCH = 40;
 
 function blockCharacterCount(block: TranslationBlock): number {
   return (
@@ -9,8 +10,14 @@ function blockCharacterCount(block: TranslationBlock): number {
   );
 }
 
-function splitBlockToFit(block: TranslationBlock, characterLimit: number): TranslationBlock[] {
-  if (blockCharacterCount(block) <= characterLimit) return [block];
+function splitBlockToFit(
+  block: TranslationBlock,
+  characterLimit: number,
+  segmentLimit: number,
+): TranslationBlock[] {
+  if (blockCharacterCount(block) <= characterLimit && block.segments.length <= segmentLimit) {
+    return [block];
+  }
 
   const parts: TranslationBlock[] = [];
   let currentSegments: TranslationBlock['segments'] = [];
@@ -33,7 +40,8 @@ function splitBlockToFit(block: TranslationBlock, characterLimit: number): Trans
     const minimumContextCharacters = Math.min(block.context.length, 200);
     if (
       currentSegments.length > 0 &&
-      currentSegmentCharacters + segmentCharacters + minimumContextCharacters > characterLimit
+      (currentSegments.length >= segmentLimit ||
+        currentSegmentCharacters + segmentCharacters + minimumContextCharacters > characterLimit)
     ) {
       pushPart();
     }
@@ -48,6 +56,7 @@ function splitBlockToFit(block: TranslationBlock, characterLimit: number): Trans
 export function buildTranslationBatches(
   blocks: TranslationBlock[],
   characterLimit: number,
+  segmentLimit = DEFAULT_MAX_SEGMENTS_PER_BATCH,
 ): TranslationBatch[] {
   const safeLimit = Number.isFinite(characterLimit)
     ? Math.max(2_000, Math.floor(characterLimit))
@@ -55,18 +64,30 @@ export function buildTranslationBatches(
   const batches: TranslationBatch[] = [];
   let currentBatch: TranslationBatch = [];
   let currentCharacters = 0;
+  let currentSegments = 0;
+  const safeSegmentLimit = Number.isFinite(segmentLimit)
+    ? Math.max(1, Math.min(100, Math.floor(segmentLimit)))
+    : DEFAULT_MAX_SEGMENTS_PER_BATCH;
 
-  const normalizedBlocks = blocks.flatMap((block) => splitBlockToFit(block, safeLimit));
+  const normalizedBlocks = blocks.flatMap((block) =>
+    splitBlockToFit(block, safeLimit, safeSegmentLimit),
+  );
   for (const block of normalizedBlocks) {
     const characters = blockCharacterCount(block);
-    if (currentBatch.length > 0 && currentCharacters + characters > safeLimit) {
+    const segments = block.segments.length;
+    if (
+      currentBatch.length > 0 &&
+      (currentCharacters + characters > safeLimit || currentSegments + segments > safeSegmentLimit)
+    ) {
       batches.push(currentBatch);
       currentBatch = [];
       currentCharacters = 0;
+      currentSegments = 0;
     }
 
     currentBatch.push(block);
     currentCharacters += characters;
+    currentSegments += segments;
   }
 
   if (currentBatch.length > 0) batches.push(currentBatch);

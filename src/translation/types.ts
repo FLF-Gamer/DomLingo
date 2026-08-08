@@ -24,7 +24,16 @@ export interface ValidatedTranslation {
   text: string;
 }
 
+export type TranslationResultFailureReason =
+  'INVALID_RESPONSE' | 'MISSING_ID' | 'DUPLICATE_ID' | 'INVALID_TEXT';
+
+export interface TranslationSegmentFailure {
+  id: string;
+  reason: TranslationResultFailureReason;
+}
+
 export interface TranslationBatchResult {
   translations: ValidatedTranslation[];
   failedIds: string[];
+  failures: TranslationSegmentFailure[];
 }

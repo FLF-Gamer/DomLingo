@@ -25,6 +25,7 @@ describe('PageTranslationSession', () => {
           block.segments.map((segment) => ({ id: segment.id, text: `中文:${segment.text}` })),
         ),
         failedIds: [],
+        failures: [],
       },
     }));
     vi.stubGlobal('chrome', { runtime: { sendMessage } });
@@ -55,6 +56,9 @@ describe('PageTranslationSession', () => {
         result: {
           translations: [{ id: segments[1]!.id, text: '部分有效译文。' }],
           failedIds: segments.filter((_segment, index) => index !== 1).map((segment) => segment.id),
+          failures: segments
+            .filter((_segment, index) => index !== 1)
+            .map((segment) => ({ id: segment.id, reason: 'MISSING_ID' as const })),
         },
       };
     });
@@ -66,6 +70,8 @@ describe('PageTranslationSession', () => {
     await vi.waitFor(() => expect(session.getStatus().state).toBe('completed'));
     expect(session.getStatus().translated).toBe(1);
     expect(session.getStatus().failed).toBeGreaterThan(0);
+    expect(session.getStatus().failureDetails.MISSING_ID).toBeGreaterThan(0);
+    expect(session.getStatus().message).toContain('模型漏回 ID');
     expect(document.querySelector('main')?.textContent).toContain('部分有效译文。');
     expect(document.querySelector('main')?.textContent).toContain(
       'This second paragraph deliberately remains untranslated after a node failure.',
@@ -103,7 +109,7 @@ describe('PageTranslationSession', () => {
     const translations = pendingMessage!.payload.blocks.flatMap((block) =>
       block.segments.map((segment) => ({ id: segment.id, text: '不应写入的迟到译文' })),
     );
-    resolveBatch?.({ ok: true, result: { translations, failedIds: [] } });
+    resolveBatch?.({ ok: true, result: { translations, failedIds: [], failures: [] } });
     await Promise.resolve();
 
     expect(session.getStatus().state).toBe('stopped');
@@ -134,5 +140,33 @@ describe('PageTranslationSession', () => {
     );
     expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'CANCEL_SESSION' }));
     expect(document.querySelector('main')?.textContent).toBe(originalText);
+  });
+
+  it('reports a provider batch failure separately from missing model IDs', async () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>A rate limited translation request</h1>
+        <p>This paragraph remains unchanged when the provider rejects its batch.</p>
+      </main>
+    `;
+    const sendMessage = vi.fn(async (message: { type?: string }) => {
+      if (message.type === 'TRANSLATE_BATCH') {
+        return {
+          ok: false,
+          code: 'RATE_LIMITED',
+          message: '模型服务请求过于频繁，请稍后重试。',
+        };
+      }
+      return { ok: true };
+    });
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+
+    const session = new PageTranslationSession(document);
+    session.start({ batchCharacterLimit: 4_000, concurrency: 1 });
+
+    await vi.waitFor(() => expect(session.getStatus().state).toBe('error'));
+    expect(session.getStatus().failureDetails).toEqual({ RATE_LIMITED: 2 });
+    expect(session.getStatus().message).toContain('服务限流 2');
+    expect(session.getStatus().failureDetails.MISSING_ID).toBeUndefined();
   });
 });

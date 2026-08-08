@@ -1,11 +1,8 @@
-export const EXCLUDED_CONTENT_SELECTOR = [
+const STRUCTURAL_EXCLUDED_CONTENT_SELECTORS = [
   'script',
   'style',
   'noscript',
-  'code',
   'pre',
-  'kbd',
-  'samp',
   'textarea',
   '[contenteditable="true"]',
   '[translate="no"]',
@@ -20,7 +17,22 @@ export const EXCLUDED_CONTENT_SELECTOR = [
   '.advertisement',
   '[class*="advert"]',
   '[class*="recommend"]',
+  '[class~="not-prose"]',
+  '[class~="code-block"]',
+  '[data-floating-buttons]',
+  '[role="toolbar"]',
+  'header button',
+  'header [role="button"]',
+] as const;
+
+export const EXCLUDED_CONTENT_SELECTOR = [
+  ...STRUCTURAL_EXCLUDED_CONTENT_SELECTORS,
+  'code',
+  'kbd',
+  'samp',
 ].join(',');
+
+const CONTEXT_EXCLUDED_CONTENT_SELECTOR = STRUCTURAL_EXCLUDED_CONTENT_SELECTORS.join(',');
 
 export const SEMANTIC_BLOCK_SELECTOR = [
   'p',
@@ -47,6 +59,10 @@ export function containsEnglish(value: string): boolean {
 
 export function isExcludedElement(element: Element | null): boolean {
   return Boolean(element?.closest(EXCLUDED_CONTENT_SELECTOR));
+}
+
+export function isContextExcludedElement(element: Element | null): boolean {
+  return Boolean(element?.closest(CONTEXT_EXCLUDED_CONTENT_SELECTOR));
 }
 
 export function isElementVisible(element: Element): boolean {

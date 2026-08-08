@@ -1,4 +1,9 @@
-import type { TranslationBatchResult, TranslationBlock, ValidatedTranslation } from './types';
+import type {
+  TranslationBatchResult,
+  TranslationBlock,
+  TranslationResultFailureReason,
+  ValidatedTranslation,
+} from './types';
 
 const MAX_RESPONSE_BYTES = 1_000_000;
 const MAX_TRANSLATION_LENGTH = 20_000;
@@ -34,30 +39,35 @@ export function validateTranslationResponse(
 ): TranslationBatchResult {
   const expectedIds = expectedSegmentIds(blocks);
   const expectedIdSet = new Set(expectedIds);
+  const failAll = (reason: TranslationResultFailureReason): TranslationBatchResult => ({
+    translations: [],
+    failedIds: expectedIds,
+    failures: expectedIds.map((id) => ({ id, reason })),
+  });
   if (new TextEncoder().encode(rawContent).byteLength > MAX_RESPONSE_BYTES) {
-    return { translations: [], failedIds: expectedIds };
+    return failAll('INVALID_RESPONSE');
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawContent);
   } catch {
-    return { translations: [], failedIds: expectedIds };
+    return failAll('INVALID_RESPONSE');
   }
 
   if (!isObject(parsed) || !Array.isArray(parsed.translations)) {
-    return { translations: [], failedIds: expectedIds };
+    return failAll('INVALID_RESPONSE');
   }
 
   const translationsById = new Map<string, ValidatedTranslation>();
-  const invalidIds = new Set<string>();
+  const failureById = new Map<string, TranslationResultFailureReason>();
 
   for (const item of parsed.translations) {
     if (!isObject(item) || typeof item.id !== 'string' || !expectedIdSet.has(item.id)) continue;
 
-    if (translationsById.has(item.id) || invalidIds.has(item.id)) {
+    if (translationsById.has(item.id) || failureById.has(item.id)) {
       translationsById.delete(item.id);
-      invalidIds.add(item.id);
+      failureById.set(item.id, 'DUPLICATE_ID');
       continue;
     }
 
@@ -68,18 +78,24 @@ export function validateTranslationResponse(
       containsUnsafeControlCharacter(item.text) ||
       HTML_TAG_PATTERN.test(item.text)
     ) {
-      invalidIds.add(item.id);
+      failureById.set(item.id, 'INVALID_TEXT');
       continue;
     }
 
     translationsById.set(item.id, { id: item.id, text: item.text });
   }
 
+  const failures = expectedIds.flatMap((id) => {
+    if (translationsById.has(id)) return [];
+    return [{ id, reason: failureById.get(id) ?? ('MISSING_ID' as const) }];
+  });
+
   return {
     translations: expectedIds.flatMap((id) => {
       const translation = translationsById.get(id);
       return translation ? [translation] : [];
     }),
-    failedIds: expectedIds.filter((id) => !translationsById.has(id)),
+    failedIds: failures.map(({ id }) => id),
+    failures,
   };
 }

@@ -1,5 +1,7 @@
 import type {
   CancelSessionMessage,
+  PageTranslationFailureCode,
+  PageTranslationFailureDetails,
   PageTranslationStatus,
   TranslateBatchMessage,
   TranslateBatchResponse,
@@ -23,8 +25,60 @@ const IDLE_STATUS: PageTranslationStatus = {
   total: 0,
   translated: 0,
   failed: 0,
+  failureDetails: {},
   message: '尚未开始翻译。',
 };
+
+const FAILURE_LABELS: Record<PageTranslationFailureCode, string> = {
+  AUTHENTICATION_FAILED: '认证失败',
+  ENDPOINT_NOT_FOUND: '接口或模型不存在',
+  INVALID_REQUEST: '请求被拒绝',
+  INVALID_RESPONSE: '响应格式错误',
+  NETWORK_ERROR: '网络错误',
+  RATE_LIMITED: '服务限流',
+  REQUEST_TIMEOUT: '请求超时',
+  SERVER_ERROR: '服务端错误',
+  SESSION_CANCELLED: '会话已取消',
+  STALE_DOM: '页面节点已变化',
+  MISSING_ID: '模型漏回 ID',
+  DUPLICATE_ID: '模型返回重复 ID',
+  INVALID_TEXT: '译文内容无效',
+};
+
+function buildFailureDetails(
+  records: SourceRecord[],
+  processedSegmentIds: ReadonlySet<string>,
+  segmentFailures: ReadonlyMap<string, PageTranslationFailureCode>,
+  staleRecordIds: ReadonlySet<string>,
+  includePending: boolean,
+): PageTranslationFailureDetails {
+  const details: PageTranslationFailureDetails = {};
+  for (const record of records) {
+    if (record.appliedValue !== undefined) continue;
+    const processed = record.segments.every((segment) => processedSegmentIds.has(segment.id));
+    if (!processed && !includePending) continue;
+
+    const reason = staleRecordIds.has(record.id)
+      ? 'STALE_DOM'
+      : (record.segments.flatMap((segment) => {
+          const failure = segmentFailures.get(segment.id);
+          return failure ? [failure] : [];
+        })[0] ?? 'MISSING_ID');
+    details[reason] = (details[reason] ?? 0) + 1;
+  }
+  return details;
+}
+
+function failureCount(details: PageTranslationFailureDetails): number {
+  return Object.values(details).reduce((total, count) => total + (count ?? 0), 0);
+}
+
+function formatFailureDetails(details: PageTranslationFailureDetails): string {
+  return Object.entries(details)
+    .filter((entry): entry is [PageTranslationFailureCode, number] => (entry[1] ?? 0) > 0)
+    .map(([code, count]) => `${FAILURE_LABELS[code]} ${count}`)
+    .join('、');
+}
 
 export class PageTranslationSession {
   private status: PageTranslationStatus = { ...IDLE_STATUS };
@@ -39,7 +93,7 @@ export class PageTranslationSession {
   ) {}
 
   getStatus(): PageTranslationStatus {
-    return { ...this.status };
+    return { ...this.status, failureDetails: { ...this.status.failureDetails } };
   }
 
   private setStatus(status: PageTranslationStatus): void {
@@ -138,12 +192,15 @@ export class PageTranslationSession {
       total: collected.records.length,
       translated: 0,
       failed: 0,
+      failureDetails: {},
       message: `正在翻译 0 / ${collected.records.length}…`,
     });
 
     let lastError = '';
     const accumulatedTranslations = new Map<string, string>();
     const processedSegmentIds = new Set<string>();
+    const segmentFailures = new Map<string, PageTranslationFailureCode>();
+    const staleRecordIds = new Set<string>();
     await mapWithConcurrency(batches, options.concurrency, async (blocks, batchIndex) => {
       if (generation !== this.generation || !this.root) return;
 
@@ -176,39 +233,59 @@ export class PageTranslationSession {
 
       if (!response?.ok) {
         lastError = response?.message ?? '模型服务没有返回有效结果。';
+        for (const block of blocks) {
+          for (const segment of block.segments) segmentFailures.set(segment.id, response.code);
+        }
       } else {
         for (const translation of response.result.translations) {
           accumulatedTranslations.set(translation.id, translation.text);
         }
-        applyTranslations(this.root, this.records, accumulatedTranslations);
+        for (const failure of response.result.failures) {
+          segmentFailures.set(failure.id, failure.reason);
+        }
+        const mutation = applyTranslations(this.root, this.records, accumulatedTranslations);
+        for (const recordId of mutation.staleRecordIds) staleRecordIds.add(recordId);
       }
 
       const translatedRecordCount = this.records.filter(
         (record) => record.appliedValue !== undefined,
       ).length;
+      const failureDetails = buildFailureDetails(
+        this.records,
+        processedSegmentIds,
+        segmentFailures,
+        staleRecordIds,
+        false,
+      );
       this.status.translated = translatedRecordCount;
-      this.status.failed = this.records.filter(
-        (record) =>
-          record.appliedValue === undefined &&
-          record.segments.every((segment) => processedSegmentIds.has(segment.id)),
-      ).length;
+      this.status.failed = failureCount(failureDetails);
+      this.status.failureDetails = failureDetails;
 
       this.setStatus({
         ...this.status,
-        message: `正在翻译 ${this.status.translated} / ${this.status.total}…`,
+        message: `正在翻译 ${this.status.translated + this.status.failed} / ${this.status.total}…`,
       });
     });
 
     if (generation !== this.generation) return;
-    this.status.failed = this.status.total - this.status.translated;
+    const finalFailureDetails = buildFailureDetails(
+      this.records,
+      processedSegmentIds,
+      segmentFailures,
+      staleRecordIds,
+      true,
+    );
+    this.status.failureDetails = finalFailureDetails;
+    this.status.failed = failureCount(finalFailureDetails);
     const finalState = this.status.translated > 0 ? 'completed' : 'error';
+    const failureSummary = formatFailureDetails(finalFailureDetails);
     this.setStatus({
       ...this.status,
       state: finalState,
       message:
         finalState === 'completed'
-          ? `翻译完成：成功 ${this.status.translated}，失败 ${this.status.failed}。`
-          : lastError || '没有节点翻译成功，页面保持原文。',
+          ? `翻译完成：成功 ${this.status.translated}，失败 ${this.status.failed}。${failureSummary ? `失败原因：${failureSummary}。` : ''}`
+          : `${lastError || '没有节点翻译成功，页面保持原文。'}${failureSummary ? ` 失败原因：${failureSummary}。` : ''}`,
     });
   }
 }

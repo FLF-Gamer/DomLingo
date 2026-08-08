@@ -12,6 +12,7 @@ const INITIAL_STATUS: PageTranslationStatus = {
   total: 0,
   translated: 0,
   failed: 0,
+  failureDetails: {},
   message: '正在读取当前页面状态…',
 };
 
@@ -99,6 +100,7 @@ export function PopupApp() {
 
   const isTranslating = status.state === 'scanning' || status.state === 'translating';
   const hasTranslations = status.translated > 0;
+  const processed = status.translated + status.failed;
 
   return (
     <main className="popup-shell">
@@ -120,7 +122,7 @@ export function PopupApp() {
         <div>
           <strong>
             {isTranslating
-              ? `翻译中 ${status.translated} / ${status.total}`
+              ? `翻译中 ${processed} / ${status.total}`
               : status.state === 'completed'
                 ? '翻译完成'
                 : status.state === 'error'

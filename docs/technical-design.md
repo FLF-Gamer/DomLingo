@@ -393,10 +393,11 @@ code, pre, kbd, samp,
 textarea, [contenteditable="true"],
 [translate="no"], [hidden], [aria-hidden="true"],
 nav, [role="navigation"],
+not-prose、code-block、toolbar、页头操作控件，
 以及 display:none / visibility:hidden 的内容
 ```
 
-代码块默认不翻译，以避免变量名、命令和格式被破坏。普通行内链接文字可以翻译，但 `href` 保持不变。
+代码块及其复制、反馈、助手等工具控件默认不翻译，以避免变量名、命令、格式和页面操作被破坏。行内 `code`、`kbd`、`samp` 不进入 `segments`，但文本可以进入同一语义块的只读 `context`，帮助模型翻译相邻碎片。普通行内链接文字可以翻译，但 `href` 保持不变。
 
 ## 9. 节点采集与语义分组
 
@@ -462,6 +463,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 规则：
 
 - 字符限制计算实际发送的 segment 和必要 context；
+- 单批最多包含 40 个 segment ID，避免短碎片过多导致返回 JSON 截断；
 - 单个块超过限制时才允许拆分；
 - 并发以页面会话为单位；
 - 429、502、503、504 和网络暂时失败可以重试；
@@ -575,6 +577,8 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 7. 检查是否包含疑似 HTML 标签；
 8. 将缺失或无效 ID 标记为节点失败；
 9. 仅返回验证通过的 ID 给 Content Script。
+
+Content Script 按节点汇总 `INVALID_RESPONSE`、`MISSING_ID`、`DUPLICATE_ID`、`INVALID_TEXT`、Provider 错误和 `STALE_DOM`，Popup 与页面浮层显示分类数量。批次级 Provider 错误不得伪装成模型漏回 ID。
 
 整个批次无法解析时允许进行一次“格式修复重试”；修复请求仍只发送该批次，不发送更多网页内容。
 
