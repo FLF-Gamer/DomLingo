@@ -34,7 +34,7 @@ export const DEFAULT_SYNCED_SETTINGS: SyncedSettings = {
   targetLanguage: 'zh-CN',
   customPrompt: '',
   promptVersion: '1',
-  batchCharacterLimit: 4_000,
+  batchCharacterLimit: 2_000,
   concurrency: 3,
   dynamicTranslationEnabled: true,
   cacheEnabled: true,
@@ -55,9 +55,11 @@ export async function loadSyncedSettings(): Promise<SyncedSettings> {
   const concurrency = Number.isFinite(candidate.concurrency)
     ? Math.max(1, Math.min(3, Math.floor(candidate.concurrency!)))
     : DEFAULT_SYNCED_SETTINGS.concurrency;
-  const batchCharacterLimit = Number.isFinite(candidate.batchCharacterLimit)
-    ? Math.max(2_000, Math.min(8_000, Math.floor(candidate.batchCharacterLimit!)))
-    : DEFAULT_SYNCED_SETTINGS.batchCharacterLimit;
+  // M2 originally stored 4,000–8,000 character batches. Those values caused
+  // repeated length-limited responses on otherwise compatible providers, and
+  // the setting is not user-configurable yet. Normalize existing installs to
+  // the safer M2 limit as well as using it for new installs.
+  const batchCharacterLimit = DEFAULT_SYNCED_SETTINGS.batchCharacterLimit;
 
   return {
     ...DEFAULT_SYNCED_SETTINGS,

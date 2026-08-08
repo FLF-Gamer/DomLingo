@@ -104,8 +104,13 @@ function translationMaxTokens(blocks: TranslationBlock[]): number {
   const segments = blocks.flatMap((block) => block.segments);
   const textCharacters = segments.reduce((total, segment) => total + segment.text.length, 0);
   const idCharacters = segments.reduce((total, segment) => total + segment.id.length, 0);
-  const estimate = textCharacters + Math.ceil(idCharacters / 3) + segments.length * 32 + 128;
-  return Math.max(512, Math.min(8_192, estimate));
+  const visibleOutputEstimate =
+    textCharacters + Math.ceil(idCharacters / 3) + segments.length * 32 + 128;
+  // Some compatible reasoning models count internal reasoning against the
+  // completion budget. Keep a reserve so a valid JSON answer is not cut off
+  // even when the visible translation itself is small.
+  const estimateWithReasoningReserve = visibleOutputEstimate + 1_536;
+  return Math.max(2_048, Math.min(8_192, estimateWithReasoningReserve));
 }
 
 export async function testOpenAICompatibleConnection(

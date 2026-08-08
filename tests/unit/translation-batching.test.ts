@@ -78,7 +78,7 @@ describe('translation batching', () => {
 
     const batches = buildTranslationBatches([fragmented], 20_000);
     expect(batches.map((batch) => batch.flatMap((item) => item.segments).length)).toEqual([
-      20, 20, 20, 20, 15,
+      10, 10, 10, 10, 10, 10, 10, 10, 10, 5,
     ]);
   });
 });

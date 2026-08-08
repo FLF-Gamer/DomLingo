@@ -27,3 +27,5 @@ interfaces and stored data formats may still change.
 - Per-endpoint structured-output capability probing with JSON Schema, JSON Mode, and Prompt fallbacks.
 - Dynamic output-token budgets, truncation classification, and bounded adaptive splitting for malformed batches.
 - A saved 1–3 request concurrency control for provider compatibility testing.
+- Conservative 2,000-character/10-segment batches with extra completion-token reserve.
+- Atomic semantic-block DOM commits for paragraphs, list items, and table rows, including cached partial results across failed-node retries.

@@ -49,23 +49,40 @@ const FAILURE_LABELS: Record<PageTranslationFailureCode, string> = {
 
 function buildFailureDetails(
   records: SourceRecord[],
+  translations: ReadonlyMap<string, string>,
   processedSegmentIds: ReadonlySet<string>,
   segmentFailures: ReadonlyMap<string, PageTranslationFailureCode>,
   staleRecordIds: ReadonlySet<string>,
   includePending: boolean,
 ): PageTranslationFailureDetails {
   const details: PageTranslationFailureDetails = {};
+  const recordsByTransaction = new Map<string, SourceRecord[]>();
+  for (const record of records) {
+    const transactionId = record.kind === 'text-node' ? record.blockId : record.id;
+    const transaction = recordsByTransaction.get(transactionId) ?? [];
+    transaction.push(record);
+    recordsByTransaction.set(transactionId, transaction);
+  }
+
   for (const record of records) {
     if (record.appliedValue !== undefined) continue;
-    const processed = record.segments.every((segment) => processedSegmentIds.has(segment.id));
+    const transactionId = record.kind === 'text-node' ? record.blockId : record.id;
+    const transaction = recordsByTransaction.get(transactionId) ?? [record];
+    const processed = transaction.every((transactionRecord) =>
+      transactionRecord.segments.every(
+        (segment) => translations.has(segment.id) || processedSegmentIds.has(segment.id),
+      ),
+    );
     if (!processed && !includePending) continue;
 
-    const reason = staleRecordIds.has(record.id)
+    const reason = transaction.some((transactionRecord) => staleRecordIds.has(transactionRecord.id))
       ? 'STALE_DOM'
-      : (record.segments.flatMap((segment) => {
-          const failure = segmentFailures.get(segment.id);
-          return failure ? [failure] : [];
-        })[0] ?? 'MISSING_ID');
+      : (transaction.flatMap((transactionRecord) =>
+          transactionRecord.segments.flatMap((segment) => {
+            const failure = segmentFailures.get(segment.id);
+            return failure ? [failure] : [];
+          }),
+        )[0] ?? 'MISSING_ID');
     details[reason] = (details[reason] ?? 0) + 1;
   }
   return details;
@@ -90,6 +107,7 @@ export class PageTranslationSession {
   private sessionId = '';
   private generation = 0;
   private lastOptions: TranslationSessionOptions | undefined;
+  private readonly translations = new Map<string, string>();
 
   constructor(
     private readonly document: Document,
@@ -160,6 +178,7 @@ export class PageTranslationSession {
     this.root = undefined;
     this.records = [];
     this.blocks = [];
+    this.translations.clear();
     this.sessionId = '';
     this.setStatus({ ...IDLE_STATUS, message: '已恢复本次会话修改的原文。' });
     return this.getStatus();
@@ -177,7 +196,11 @@ export class PageTranslationSession {
     if (failedRecords.length === 0) return this.getStatus();
 
     const failedSegmentIds = new Set(
-      failedRecords.flatMap((record) => record.segments.map((segment) => segment.id)),
+      failedRecords.flatMap((record) =>
+        record.segments.flatMap((segment) =>
+          this.translations.has(segment.id) ? [] : [segment.id],
+        ),
+      ),
     );
     const retryBlocks = this.blocks.flatMap((block) => {
       const segments = block.segments.filter((segment) => failedSegmentIds.has(segment.id));
@@ -216,6 +239,7 @@ export class PageTranslationSession {
     this.generation += 1;
     const generation = this.generation;
     this.sessionId = crypto.randomUUID();
+    this.translations.clear();
     this.setStatus({ ...IDLE_STATUS, state: 'scanning', message: '正在识别网页正文…' });
 
     const detection = detectMainContent(this.document);
@@ -261,7 +285,6 @@ export class PageTranslationSession {
     const batches = buildTranslationBatches(sourceBlocks, options.batchCharacterLimit);
 
     let lastError = '';
-    const accumulatedTranslations = new Map<string, string>();
     const processedSegmentIds = new Set<string>();
     const segmentFailures = new Map<string, PageTranslationFailureCode>();
     const staleRecordIds = new Set<string>();
@@ -291,17 +314,18 @@ export class PageTranslationSession {
           }
         } else {
           for (const translation of ready.response.result.translations) {
-            accumulatedTranslations.set(translation.id, translation.text);
+            this.translations.set(translation.id, translation.text);
           }
           for (const failure of ready.response.result.failures) {
             segmentFailures.set(failure.id, failure.reason);
           }
-          const mutation = applyTranslations(this.root, this.records, accumulatedTranslations);
+          const mutation = applyTranslations(this.root, this.records, this.translations);
           for (const recordId of mutation.staleRecordIds) staleRecordIds.add(recordId);
         }
 
         const failureDetails = buildFailureDetails(
           this.records,
+          this.translations,
           processedSegmentIds,
           segmentFailures,
           staleRecordIds,
@@ -354,6 +378,7 @@ export class PageTranslationSession {
     commitReadyBatches();
     const finalFailureDetails = buildFailureDetails(
       this.records,
+      this.translations,
       processedSegmentIds,
       segmentFailures,
       staleRecordIds,

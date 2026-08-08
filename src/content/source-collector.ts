@@ -81,6 +81,9 @@ function splitWhitespace(value: string): {
 }
 
 function nearestSemanticBlock(element: HTMLElement, root: HTMLElement): HTMLElement {
+  const tableRow = element.closest<HTMLElement>('tr');
+  if (tableRow && (tableRow === root || root.contains(tableRow))) return tableRow;
+
   const block = element.closest<HTMLElement>(SEMANTIC_BLOCK_SELECTOR);
   return block && (block === root || root.contains(block))
     ? block
@@ -303,6 +306,21 @@ function isRecordInRoot(record: SourceRecord, root: HTMLElement): boolean {
   return node.isConnected && (node === root || root.contains(node));
 }
 
+function transactionId(record: SourceRecord): string {
+  return record.kind === 'text-node' ? record.blockId : record.id;
+}
+
+function groupRecordsByTransaction(records: SourceRecord[]): SourceRecord[][] {
+  const grouped = new Map<string, SourceRecord[]>();
+  for (const record of records) {
+    const id = transactionId(record);
+    const transaction = grouped.get(id) ?? [];
+    transaction.push(record);
+    grouped.set(id, transaction);
+  }
+  return [...grouped.values()];
+}
+
 export function applyTranslations(
   root: HTMLElement,
   records: SourceRecord[],
@@ -310,20 +328,33 @@ export function applyTranslations(
 ): MutationSummary {
   const summary: MutationSummary = { applied: 0, restored: 0, stale: 0, staleRecordIds: [] };
 
-  for (const record of records) {
-    if (record.appliedValue !== undefined) continue;
-    const translatedParts = record.segments.map((segment) => translations.get(segment.id));
-    if (translatedParts.some((part) => part === undefined)) continue;
-    if (!isRecordInRoot(record, root) || currentRecordValue(record) !== record.originalValue) {
-      summary.stale += 1;
-      summary.staleRecordIds.push(record.id);
+  for (const transaction of groupRecordsByTransaction(records)) {
+    const pending = transaction.filter((record) => record.appliedValue === undefined);
+    if (pending.length === 0) continue;
+
+    const translatedByRecord = pending.map((record) =>
+      record.segments.map((segment) => translations.get(segment.id)),
+    );
+    if (translatedByRecord.some((parts) => parts.some((part) => part === undefined))) continue;
+
+    const staleRecords = pending.filter(
+      (record) =>
+        !isRecordInRoot(record, root) || currentRecordValue(record) !== record.originalValue,
+    );
+    if (staleRecords.length > 0) {
+      summary.stale += staleRecords.length;
+      summary.staleRecordIds.push(...staleRecords.map((record) => record.id));
       continue;
     }
 
-    const appliedValue = `${record.leadingWhitespace}${translatedParts.join('')}${record.trailingWhitespace}`;
-    writeRecordValue(record, appliedValue);
-    record.appliedValue = appliedValue;
-    summary.applied += 1;
+    for (let index = 0; index < pending.length; index += 1) {
+      const record = pending[index]!;
+      const translatedParts = translatedByRecord[index] as string[];
+      const appliedValue = `${record.leadingWhitespace}${translatedParts.join('')}${record.trailingWhitespace}`;
+      writeRecordValue(record, appliedValue);
+      record.appliedValue = appliedValue;
+      summary.applied += 1;
+    }
   }
 
   return summary;

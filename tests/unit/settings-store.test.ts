@@ -56,7 +56,18 @@ describe('synced settings structured output capability', () => {
 
     await expect(loadSyncedSettings()).resolves.toMatchObject({
       concurrency: 3,
-      batchCharacterLimit: 8_000,
+      batchCharacterLimit: 2_000,
+    });
+  });
+
+  it('migrates the legacy 4,000-character batch size for existing installs', async () => {
+    state['domlingo.syncedSettings'] = {
+      ...DEFAULT_SYNCED_SETTINGS,
+      batchCharacterLimit: 4_000,
+    };
+
+    await expect(loadSyncedSettings()).resolves.toMatchObject({
+      batchCharacterLimit: 2_000,
     });
   });
 });

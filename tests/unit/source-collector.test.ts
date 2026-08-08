@@ -113,4 +113,46 @@ describe('page source collection and DOM transactions', () => {
     );
     expect(applyTranslations(root, collected.records, complete).applied).toBe(1);
   });
+
+  it('writes inline-code sentences and table rows only when the semantic block is complete', () => {
+    document.body.innerHTML = `
+      <main id="root">
+        <ul>
+          <li id="name-rule">May only contain <code>a-z</code> and hyphens <code>-</code> in this field.</li>
+        </ul>
+        <table>
+          <tbody>
+            <tr id="license-row"><td><code>license</code></td><td>No</td><td>License name or reference to a bundled license file.</td></tr>
+          </tbody>
+        </table>
+      </main>
+    `;
+    const root = document.querySelector<HTMLElement>('#root')!;
+    const collected = collectPageSources(root, 'agent-skills');
+    const listRecords = collected.records.filter((record) =>
+      document.querySelector('#name-rule')?.contains(record.target),
+    );
+    const rowRecords = collected.records.filter((record) =>
+      document.querySelector('#license-row')?.contains(record.target),
+    );
+
+    expect(new Set(listRecords.map((record) => record.blockId)).size).toBe(1);
+    expect(new Set(rowRecords.map((record) => record.blockId)).size).toBe(1);
+
+    const firstListRecord = listRecords[0]!;
+    expect(
+      applyTranslations(root, collected.records, new Map([[firstListRecord.id, '只能包含']]))
+        .applied,
+    ).toBe(0);
+    expect(document.querySelector('#name-rule')?.textContent).toContain('and hyphens');
+
+    const completeTranslations = new Map(
+      collected.records.map((record) => [record.id, `译文:${record.sourceText}`]),
+    );
+    expect(applyTranslations(root, collected.records, completeTranslations).applied).toBe(
+      collected.records.length,
+    );
+    expect(document.querySelector('#name-rule code')?.textContent).toBe('a-z');
+    expect(document.querySelector('#license-row code')?.textContent).toBe('license');
+  });
 });

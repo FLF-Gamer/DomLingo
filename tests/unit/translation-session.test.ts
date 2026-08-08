@@ -285,4 +285,67 @@ describe('PageTranslationSession', () => {
     expect(retryIds).not.toContain(successfulId);
     expect(retryIds).toHaveLength(2);
   });
+
+  it('keeps an inline-code list item original until retry completes its semantic block', async () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>Agent Skills name requirements</h1>
+        <ul>
+          <li id="rule">May only contain <code>a-z</code> and hyphens <code>-</code> in the directory name.</li>
+        </ul>
+        <p>This supporting paragraph makes the documentation body detectable.</p>
+      </main>
+    `;
+    const messages: TranslateBatchMessage[] = [];
+    let cachedSuccessfulId = '';
+    const sendMessage = vi.fn(async (message: { type?: string }) => {
+      if (message.type !== 'TRANSLATE_BATCH') return { ok: true };
+      const batch = message as TranslateBatchMessage;
+      messages.push(batch);
+      const segments = batch.payload.blocks.flatMap((block) => block.segments);
+      if (messages.length === 1) {
+        const ruleBlock = batch.payload.blocks.find((block) =>
+          block.context.includes('May only contain'),
+        )!;
+        cachedSuccessfulId = ruleBlock.segments[0]!.id;
+        const failedSegments = segments.filter((segment) => segment.id !== cachedSuccessfulId);
+        return {
+          ok: true,
+          result: {
+            translations: [{ id: cachedSuccessfulId, text: '只能包含' }],
+            failedIds: failedSegments.map((segment) => segment.id),
+            failures: failedSegments.map((segment) => ({
+              id: segment.id,
+              reason: 'OUTPUT_TRUNCATED' as const,
+            })),
+          },
+        };
+      }
+      return {
+        ok: true,
+        result: {
+          translations: segments.map((segment) => ({ id: segment.id, text: '补全译文' })),
+          failedIds: [],
+          failures: [],
+        },
+      };
+    });
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+
+    const session = new PageTranslationSession(document);
+    session.start({ batchCharacterLimit: 2_000, concurrency: 1 });
+    await vi.waitFor(() => expect(session.getStatus().state).toBe('error'));
+    expect(document.querySelector('#rule')?.textContent).toContain('and hyphens');
+    expect(session.getStatus().failureDetails.OUTPUT_TRUNCATED).toBeGreaterThan(0);
+
+    session.retryFailed();
+    await vi.waitFor(() => expect(session.getStatus().state).toBe('completed'));
+    const retryIds = messages[1]!.payload.blocks.flatMap((block) =>
+      block.segments.map((segment) => segment.id),
+    );
+    expect(retryIds).not.toContain(cachedSuccessfulId);
+    expect(document.querySelector('#rule')?.textContent).not.toContain('and hyphens');
+    expect(document.querySelector('#rule code')?.textContent).toBe('a-z');
+    expect(session.getStatus()).toMatchObject({ failed: 0 });
+  });
 });

@@ -203,7 +203,7 @@ describe('translateOpenAICompatible', () => {
           json_schema?: { strict?: boolean; schema?: { required?: string[] } };
         };
       };
-      expect(body.max_tokens).toBeGreaterThanOrEqual(512);
+      expect(body.max_tokens).toBeGreaterThanOrEqual(2_048);
       expect(body.response_format).toMatchObject({
         type: 'json_schema',
         json_schema: {

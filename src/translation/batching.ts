@@ -1,7 +1,7 @@
 import type { TranslationBlock } from './types';
 
 export type TranslationBatch = TranslationBlock[];
-const DEFAULT_MAX_SEGMENTS_PER_BATCH = 20;
+const DEFAULT_MAX_SEGMENTS_PER_BATCH = 10;
 
 function blockCharacterCount(block: TranslationBlock): number {
   return (

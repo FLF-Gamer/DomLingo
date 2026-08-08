@@ -431,12 +431,13 @@ not-prose、code-block、toolbar、页头操作控件，
 
 ```text
 p, li, h1-h6, blockquote, figcaption,
-td, th, dt, dd, button, label
+tr, dt, dd, button, label
 ```
 
 同一祖先内的节点组成一个 `TranslationBlock`。`context` 来自该块经过清理的可见文本，`segments` 只包含需要写回的具体节点。
 
-超长单节点按句子边界拆为多个子段，返回后按顺序拼接，再作为一次节点级事务写回。
+超长单节点按句子边界拆为多个子段，返回后按顺序拼接。普通文本以段落、列表项或表格行为
+原子事务写回；白名单属性仍按属性节点独立写回。
 
 ## 10. 可视区域优先级
 
@@ -454,8 +455,9 @@ td, th, dt, dd, button, label
 默认参数：
 
 ```ts
-const DEFAULT_BATCH_CHARACTER_LIMIT = 4_000;
+const DEFAULT_BATCH_CHARACTER_LIMIT = 2_000;
 const DEFAULT_CONCURRENCY = 3;
+const DEFAULT_MAX_SEGMENTS_PER_BATCH = 10;
 const MAX_RETRY_COUNT = 3;
 const MAX_ADAPTIVE_ATTEMPTS = 12;
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -464,7 +466,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 规则：
 
 - 字符限制计算实际发送的 segment 和必要 context；
-- 单批最多包含 20 个 segment ID，降低短碎片较多时返回 JSON 被截断或偏离协议的概率；
+- 单批最多包含 10 个 segment ID，降低短碎片较多时返回 JSON 被截断或偏离协议的概率；
 - 单个块超过限制时才允许拆分；
 - 格式错误、输出截断或整批漏回时，将失败批次按 segment 顺序二分并重试，直到成功、单 segment 或达到 12 次逻辑尝试；只有原批次第一次请求允许额外进行一次格式修复，子批次不再重复格式修复；
 - 并发以页面会话为单位；
@@ -566,7 +568,9 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 
 翻译时按已探测能力构造请求：`json-schema` 强制顶层 `translations`、每项 `id/text`、必填字段和 `additionalProperties: false`；`json-object` 只强制合法 JSON；`prompt` 不发送 `response_format`。所有模式仍执行同一套应用层 ID 与文本安全校验。
 
-`max_tokens` 根据当前批次的原文字符、ID 长度和 segment 数动态估算，并限制在 512 至 8192。Chat Completions 的 `finish_reason=length` 映射为 `OUTPUT_TRUNCATED`，不得尝试解析或写回不完整 JSON，而是进入有界自适应拆批。
+`max_tokens` 根据当前批次的原文字符、ID 长度和 segment 数动态估算，并为兼容推理模型额外
+预留 1536 token，最终限制在 2048 至 8192。Chat Completions 的 `finish_reason=length` 映射为
+`OUTPUT_TRUNCATED`，不得尝试解析或写回不完整 JSON，而是进入有界自适应拆批。
 
 ## 13. Prompt 与响应验证
 
@@ -599,7 +603,9 @@ Content Script 按节点汇总 `INVALID_RESPONSE`、`MISSING_ID`、`DUPLICATE_ID
 
 整个原始批次无法解析时自动进行一次“格式修复重试”；修复请求携带原批次和该次无效响应，要求模型补回全部 ID 的纯 JSON，不发送更多网页内容，也不进行第二次格式修复。修复后仍无效、输出截断或整批 ID 缺失时，后台按原顺序二分失败 segment 并重试；部分有效响应只重试漏回或重复的 ID。单个原始批次最多执行 12 次逻辑尝试，避免不兼容服务造成无界费用。
 
-页面会话保存原始 `records` 与 `blocks`。翻译结束或停止后，Popup 和页面浮层在存在未写回节点时显示“重试失败内容”；重试只筛选 `appliedValue` 为空的节点和 segment，保留已成功译文，并建立新的 session ID 以隔离上一轮迟到响应。
+页面会话保存原始 `records`、`blocks` 与已验证译文缓存。翻译结束或停止后，Popup 和页面浮层
+在存在未写回节点时显示“重试失败内容”；重试只发送缓存中尚不存在的 segment，保留同一语义
+块内尚未写回的成功译文，并建立新的 session ID 以隔离上一轮迟到响应。
 
 ## 14. DOM 写回与恢复
 
@@ -612,6 +618,10 @@ Content Script 按节点汇总 `INVALID_RESPONSE`、`MISSING_ID`、`DUPLICATE_ID
 - 节点仍位于当前正文根节点中；
 - 当前值仍等于采集时的值或本扩展记录的上一次值；
 - 响应 ID 和文本已通过验证。
+
+普通文本按语义块执行两阶段写回：先确认块内所有 segment 已有有效译文且所有目标节点仍满足
+前置条件，再一次性修改该段落、列表项或表格行。任一 segment 缺失或任一节点已变化时，该块
+保持原文；白名单属性不与可见正文绑定，继续独立写回。
 
 文本节点使用：
 
