@@ -163,7 +163,7 @@ export default defineConfig({
   manifest: {
     name: 'DomLingo - 原页译',
     description: '使用你自己的大模型 API，在原网页中翻译英文正文。',
-    permissions: ['activeTab', 'scripting', 'storage'],
+    permissions: ['activeTab', 'contextMenus', 'scripting', 'storage'],
     optional_host_permissions: [
       'https://*/*',
       'http://localhost/*',
@@ -175,14 +175,24 @@ export default defineConfig({
 
 ### 5.1 页面权限
 
-- `activeTab`：用户点击扩展后临时访问当前页面；
+- `activeTab`：用户点击扩展按钮或 DomLingo 右键菜单后临时访问当前页面；
+- `contextMenus`：只注册一个“DomLingo：AI 翻译当前页面”快捷入口，不读取页面内容；
 - `scripting`：按需注入 Content Script；
 - 不在安装时声明 `<all_urls>` 的必需页面访问权限；
 - Chrome 内部页、商店页和其他受保护页面在执行前识别并返回可理解错误。
 
-Popup 发起翻译时先向当前 Tab 发送 `PING`。如果没有 Content Script 响应，后台使用 `chrome.scripting.executeScript()` 注入打包后的 Content Script，再发送开始命令。
+Popup 或右键菜单发起翻译时先向当前 Tab 发送 `PING`。如果没有 Content Script 响应，后台使用 `chrome.scripting.executeScript()` 注入打包后的 Content Script，再发送开始命令。
 
-### 5.2 API 域名权限
+### 5.2 右键快捷翻译
+
+- 扩展安装或更新时注册固定 ID 的单项菜单，避免重复创建；
+- 菜单标题为“DomLingo：AI 翻译当前页面”，只显示在普通 HTTP/HTTPS 文档；
+- 页面内任意右键上下文使用同一个入口，不增加停止、失败重试或恢复原文子菜单；
+- 点击后复用 Popup 的 `START_TRANSLATION` 配置校验、权限检查、Content Script 注入和会话启动流程；
+- 配置缺失、API Key 缺失或 API 域名权限失效时直接打开 Options；
+- 翻译进度、停止、重试和恢复继续由 Popup 与页面浮层负责。
+
+### 5.3 API 域名权限
 
 用户点击“测试连接”或“保存”时：
 

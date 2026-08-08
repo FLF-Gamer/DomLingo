@@ -17,6 +17,7 @@ DomLingo 是一个 Chrome 网页翻译扩展。它使用你自己的大模型 AP
 - 支持 DeepSeek、OpenRouter、OpenAI、硅基流动、Ollama 和自定义 OpenAI-compatible 服务；
 - 自动探测 JSON Schema、JSON Mode 或普通 Prompt 兼容模式；
 - 在原页面中按从上到下的顺序写入译文；
+- 支持在网页右键菜单中直接选择“DomLingo：AI 翻译当前页面”；
 - 支持停止翻译、重试失败内容和精确恢复原文；
 - 关闭插件弹窗后继续翻译，刷新、关闭标签页或同标签页导航时停止旧会话；
 - API Key 使用本机设备密钥加密保存，模型 API 域名按需授权。
@@ -76,6 +77,10 @@ DomLingo/.output/chrome-mv3/
 
 ## 翻译网页
 
+快捷方式：在普通 HTTP/HTTPS 网页中点击右键，选择“DomLingo：AI 翻译当前页面”。如果尚未完成模型配置，DomLingo 会自动打开设置页。
+
+也可以使用插件弹窗：
+
 1. 打开一个包含英文正文的普通网页；
 2. 点击 Chrome 工具栏中的 DomLingo 图标；
 3. 点击“翻译当前页面”；
@@ -116,7 +121,7 @@ DomLingo/.output/chrome-mv3/
 - 只有你主动点击翻译后，识别出的网页正文才会直接发送到所选模型服务；
 - API Key 使用本设备不可导出的密钥加密保存在扩展存储中，明文只在可信扩展会话中使用；
 - 普通设置使用 Chrome Sync，API Key 默认不会进入同步存储；
-- 安装权限保持为 `activeTab`、`scripting` 和 `storage`，模型 API 域名在测试连接时单独申请；
+- 安装权限保持为 `activeTab`、`contextMenus`、`scripting` 和 `storage`；`contextMenus` 只用于添加单项右键翻译入口，模型 API 域名在测试连接时单独申请；
 - 不读取 Cookie、密码字段、认证令牌或浏览器凭据；
 - 不上传正文、API Key、浏览历史或使用统计到 DomLingo 服务。
 
