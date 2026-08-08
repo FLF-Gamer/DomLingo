@@ -12,6 +12,7 @@ import {
 } from '../messaging/protocol';
 import { SessionRequestRegistry } from '../background/session-request-registry';
 import { registerTabLifecycleCancellation } from '../background/tab-lifecycle';
+import { registerTranslationContextMenu } from '../background/translation-context-menu';
 import { validateProviderEndpoint } from '../providers/endpoint';
 import {
   detectOpenAICompatibleStructuredOutput,
@@ -229,6 +230,14 @@ export default defineBackground(() => {
 
   registerTabLifecycleCancellation(chrome.tabs, (tabId) => {
     requestRegistry.cancelTab(tabId);
+  });
+
+  registerTranslationContextMenu({
+    contextMenus: chrome.contextMenus,
+    onInstalled: chrome.runtime.onInstalled,
+    startTranslation: (tabId) =>
+      handlePopupControl({ version: 1, type: 'START_TRANSLATION', tabId }),
+    openSettings: () => chrome.runtime.openOptionsPage(),
   });
 
   chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {

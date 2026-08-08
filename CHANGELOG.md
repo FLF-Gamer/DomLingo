@@ -7,6 +7,10 @@ interfaces and stored data formats may still change.
 
 ## [Unreleased]
 
+### Added
+
+- A single “DomLingo: AI translate current page” context-menu action that reuses the existing translation flow and opens Settings when configuration is missing.
+
 ## [0.1.0-alpha.0] - 2026-08-08
 
 ### Added
