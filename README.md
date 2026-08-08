@@ -1,6 +1,6 @@
 # DomLingo（原页译）
 
-[![CI](https://github.com/FangLinFeng-Gamer/DomLingo/actions/workflows/ci.yml/badge.svg)](https://github.com/FangLinFeng-Gamer/DomLingo/actions/workflows/ci.yml)
+[![CI](https://github.com/FLF-Gamer/DomLingo/actions/workflows/ci.yml/badge.svg)](https://github.com/FLF-Gamer/DomLingo/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 ![Status](https://img.shields.io/badge/status-alpha-orange.svg)
 
@@ -25,7 +25,7 @@ DomLingo 是一个 Chrome 网页翻译扩展。它使用你自己的大模型 AP
 
 ### GitHub Releases
 
-从 [GitHub Releases](https://github.com/FangLinFeng-Gamer/DomLingo/releases) 下载最新的 `domlingo-chrome-unpacked-<version>.zip`：
+从 [GitHub Releases](https://github.com/FLF-Gamer/DomLingo/releases) 下载最新的 `domlingo-chrome-unpacked-<version>.zip`：
 
 1. 解压下载的 ZIP；
 2. 打开 `chrome://extensions`；
@@ -46,7 +46,7 @@ GitHub 开发者版本不会自动更新。Chrome Web Store 版本将在项目�
 - Google Chrome。
 
 ```bash
-git clone https://github.com/FangLinFeng-Gamer/DomLingo.git
+git clone https://github.com/FLF-Gamer/DomLingo.git
 cd DomLingo
 pnpm install --frozen-lockfile
 pnpm build
@@ -155,7 +155,7 @@ pnpm dev
 pnpm check
 ```
 
-项目使用 TypeScript、React、WXT 和 Chrome Manifest V3。提交改动前请阅读 [贡献指南](CONTRIBUTING.md)；Bug 和功能建议可以通过 [GitHub Issues](https://github.com/FangLinFeng-Gamer/DomLingo/issues) 提交，安全问题请按照 [安全政策](SECURITY.md) 报告。
+项目使用 TypeScript、React、WXT 和 Chrome Manifest V3。提交改动前请阅读 [贡献指南](CONTRIBUTING.md)；Bug 和功能建议可以通过 [GitHub Issues](https://github.com/FLF-Gamer/DomLingo/issues) 提交，安全问题请按照 [安全政策](SECURITY.md) 报告。
 
 ## 项目文档
 
