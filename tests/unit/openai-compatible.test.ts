@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  detectOpenAICompatibleStructuredOutput,
   testOpenAICompatibleConnection,
   translateOpenAICompatible,
 } from '../../src/providers/openai-compatible';
@@ -72,6 +73,69 @@ describe('testOpenAICompatibleConnection', () => {
   });
 });
 
+describe('detectOpenAICompatibleStructuredOutput', () => {
+  const probeResponse = () =>
+    new Response(
+      JSON.stringify({
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: JSON.stringify({ ok: true }) },
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+
+  it('prefers strict JSON Schema when the endpoint enforces it', async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        response_format?: { type?: string; json_schema?: { strict?: boolean } };
+      };
+      expect(body.response_format).toMatchObject({
+        type: 'json_schema',
+        json_schema: { strict: true },
+      });
+      return probeResponse();
+    }) as typeof fetch;
+
+    await expect(detectOpenAICompatibleStructuredOutput(config, { fetchImpl })).resolves.toBe(
+      'json-schema',
+    );
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to JSON Mode when JSON Schema is unsupported', async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { response_format?: { type?: string } };
+      return body.response_format?.type === 'json_schema'
+        ? new Response('unsupported response format', { status: 400 })
+        : probeResponse();
+    }) as typeof fetch;
+
+    await expect(detectOpenAICompatibleStructuredOutput(config, { fetchImpl })).resolves.toBe(
+      'json-object',
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to the compatible Prompt mode after a plain connection succeeds', async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { response_format?: { type?: string } };
+      if (body.response_format) return new Response('unsupported response format', { status: 400 });
+      return new Response(
+        JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'OK' } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as typeof fetch;
+
+    await expect(detectOpenAICompatibleStructuredOutput(config, { fetchImpl })).resolves.toBe(
+      'prompt',
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+});
+
 describe('translateOpenAICompatible', () => {
   const blocks = [
     {
@@ -128,6 +192,77 @@ describe('translateOpenAICompatible', () => {
     await expect(
       translateOpenAICompatible(config, blocks, 'zh-CN', '', { fetchImpl }),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+
+  it('sends a strict translation schema and a bounded output budget when supported', async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        max_tokens?: number;
+        response_format?: {
+          type?: string;
+          json_schema?: { strict?: boolean; schema?: { required?: string[] } };
+        };
+      };
+      expect(body.max_tokens).toBeGreaterThanOrEqual(512);
+      expect(body.response_format).toMatchObject({
+        type: 'json_schema',
+        json_schema: {
+          strict: true,
+          schema: { required: ['translations'] },
+        },
+      });
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              finish_reason: 'stop',
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  translations: [{ id: 'source-1', text: '结构化译文。' }],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as typeof fetch;
+
+    await expect(
+      translateOpenAICompatible(
+        { ...config, structuredOutputMode: 'json-schema' },
+        blocks,
+        'zh-CN',
+        '',
+        { fetchImpl },
+      ),
+    ).resolves.toMatchObject({
+      translations: [{ id: 'source-1', text: '结构化译文。' }],
+      failures: [],
+    });
+  });
+
+  it('reports length-limited output before attempting JSON repair', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                finish_reason: 'length',
+                message: { role: 'assistant', content: '{"translations":[' },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    ) as typeof fetch;
+
+    await expect(
+      translateOpenAICompatible(config, blocks, 'zh-CN', '', { fetchImpl }),
+    ).rejects.toMatchObject({ code: 'OUTPUT_TRUNCATED' });
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
   it('requests one format repair when the model output is not parseable JSON', async () => {

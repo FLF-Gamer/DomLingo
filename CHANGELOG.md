@@ -24,3 +24,6 @@ interfaces and stored data formats may still change.
 - Segment-count batch limits, transient provider retries, and categorized node failure reporting.
 - Ordered DOM commits for concurrent batches, fenced-JSON normalization, and one automatic response-format repair.
 - Retry-failed controls in the Popup and page overlay that preserve successful translations.
+- Per-endpoint structured-output capability probing with JSON Schema, JSON Mode, and Prompt fallbacks.
+- Dynamic output-token budgets, truncation classification, and bounded adaptive splitting for malformed batches.
+- A saved 1–3 request concurrency control for provider compatibility testing.

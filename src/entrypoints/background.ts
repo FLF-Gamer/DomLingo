@@ -12,7 +12,7 @@ import {
 } from '../messaging/protocol';
 import { validateProviderEndpoint } from '../providers/endpoint';
 import {
-  testOpenAICompatibleConnection,
+  detectOpenAICompatibleStructuredOutput,
   translateOpenAICompatible,
 } from '../providers/openai-compatible';
 import { getProviderPreset } from '../providers/presets';
@@ -20,6 +20,7 @@ import { ProviderRequestError } from '../providers/provider-error';
 import type { ProviderTestResponse } from '../providers/types';
 import { getApiKey } from '../storage/api-key-store';
 import { loadSyncedSettings } from '../storage/settings-store';
+import { translateWithAdaptiveSplit } from '../translation/adaptive';
 import { retryProviderRequest } from '../translation/retry';
 
 const TRUSTED_CONTEXTS = { accessLevel: 'TRUSTED_CONTEXTS' } as const;
@@ -56,13 +57,13 @@ async function handleProviderTest(message: unknown): Promise<ProviderTestRespons
 
   try {
     const apiKey = await getApiKey(message.config.providerId);
-    await testOpenAICompatibleConnection({
+    const structuredOutputMode = await detectOpenAICompatibleStructuredOutput({
       ...message.config,
       endpoint: endpoint.endpoint,
       model: message.config.model.trim(),
       apiKey,
     });
-    return { ok: true };
+    return { ok: true, structuredOutputMode };
   } catch (error: unknown) {
     if (error instanceof ProviderRequestError) {
       return { ok: false, code: error.code, message: error.message };
@@ -203,21 +204,28 @@ async function handleTranslateBatch(
     }
 
     const apiKey = await getApiKey(settings.providerId);
-    const result = await retryProviderRequest(
-      () =>
-        translateOpenAICompatible(
-          {
-            providerId: settings.providerId,
-            endpoint: endpoint.endpoint,
-            model: settings.model.trim(),
-            apiKey,
-          },
-          message.payload.blocks,
-          settings.targetLanguage,
-          settings.customPrompt,
-          { signal: controller.signal },
-        ),
-      { signal: controller.signal },
+    const config = {
+      providerId: settings.providerId,
+      endpoint: endpoint.endpoint,
+      model: settings.model.trim(),
+      apiKey,
+      structuredOutputMode: settings.structuredOutputMode,
+    } as const;
+    const result = await translateWithAdaptiveSplit(message.payload.blocks, (blocks, attempt) =>
+      retryProviderRequest(
+        () =>
+          translateOpenAICompatible(
+            config,
+            blocks,
+            settings.targetLanguage,
+            settings.customPrompt,
+            {
+              signal: controller.signal,
+              repairInvalidResponse: attempt.repairInvalidResponse,
+            },
+          ),
+        { signal: controller.signal },
+      ),
     );
     return { ok: true, result };
   } catch (error: unknown) {

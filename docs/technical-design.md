@@ -457,6 +457,7 @@ td, th, dt, dd, button, label
 const DEFAULT_BATCH_CHARACTER_LIMIT = 4_000;
 const DEFAULT_CONCURRENCY = 3;
 const MAX_RETRY_COUNT = 3;
+const MAX_ADAPTIVE_ATTEMPTS = 12;
 const REQUEST_TIMEOUT_MS = 60_000;
 ```
 
@@ -465,6 +466,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 - 字符限制计算实际发送的 segment 和必要 context；
 - 单批最多包含 20 个 segment ID，降低短碎片较多时返回 JSON 被截断或偏离协议的概率；
 - 单个块超过限制时才允许拆分；
+- 格式错误、输出截断或整批漏回时，将失败批次按 segment 顺序二分并重试，直到成功、单 segment 或达到 12 次逻辑尝试；只有原批次第一次请求允许额外进行一次格式修复，子批次不再重复格式修复；
 - 并发以页面会话为单位；
 - Provider 请求可以并发完成，但 Content Script 按原始批次索引缓冲结果并依次写回，前一批未完成时后一批不得先修改页面；
 - 429、502、503、504 和网络暂时失败可以重试；
@@ -486,6 +488,7 @@ interface ProviderConfig {
   endpoint: string;
   apiKey?: string;
   model: string;
+  structuredOutputMode: 'json-schema' | 'json-object' | 'prompt';
 }
 
 interface TranslationRequest {
@@ -537,6 +540,15 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 {
   "model": "user-selected-model",
   "temperature": 0,
+  "max_tokens": 4096,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "domlingo_translation_batch",
+      "strict": true,
+      "schema": "..."
+    }
+  },
   "messages": [
     {
       "role": "system",
@@ -550,7 +562,11 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 }
 ```
 
-不能假设所有 OpenAI-compatible 服务都支持 `response_format`。Provider 可以对已验证支持的服务启用结构化输出，否则使用普通文本响应并执行严格 JSON 解析。
+不能假设所有 OpenAI-compatible 服务都支持相同的 `response_format`。用户执行“测试连接并保存”时，后台只发送固定的非网页探测文本，按 `json_schema + strict`、`json_object`、普通 Prompt 的顺序探测；能力与 Provider、规范化 Endpoint、模型名称共同绑定并保存到普通同步设置。API Key 存储方式不变。
+
+翻译时按已探测能力构造请求：`json-schema` 强制顶层 `translations`、每项 `id/text`、必填字段和 `additionalProperties: false`；`json-object` 只强制合法 JSON；`prompt` 不发送 `response_format`。所有模式仍执行同一套应用层 ID 与文本安全校验。
+
+`max_tokens` 根据当前批次的原文字符、ID 长度和 segment 数动态估算，并限制在 512 至 8192。Chat Completions 的 `finish_reason=length` 映射为 `OUTPUT_TRUNCATED`，不得尝试解析或写回不完整 JSON，而是进入有界自适应拆批。
 
 ## 13. Prompt 与响应验证
 
@@ -581,7 +597,7 @@ DeepSeek、OpenRouter、OpenAI、硅基流动和 Ollama 都复用 `OpenAICompati
 
 Content Script 按节点汇总 `INVALID_RESPONSE`、`MISSING_ID`、`DUPLICATE_ID`、`INVALID_TEXT`、Provider 错误和 `STALE_DOM`，Popup 与页面浮层显示分类数量。批次级 Provider 错误不得伪装成模型漏回 ID。
 
-整个批次无法解析时自动进行一次“格式修复重试”；修复请求携带原批次和该次无效响应，要求模型补回全部 ID 的纯 JSON，不发送更多网页内容，也不进行第二次格式修复。
+整个原始批次无法解析时自动进行一次“格式修复重试”；修复请求携带原批次和该次无效响应，要求模型补回全部 ID 的纯 JSON，不发送更多网页内容，也不进行第二次格式修复。修复后仍无效、输出截断或整批 ID 缺失时，后台按原顺序二分失败 segment 并重试；部分有效响应只重试漏回或重复的 ID。单个原始批次最多执行 12 次逻辑尝试，避免不兼容服务造成无界费用。
 
 页面会话保存原始 `records` 与 `blocks`。翻译结束或停止后，Popup 和页面浮层在存在未写回节点时显示“重试失败内容”；重试只筛选 `appliedValue` 为空的节点和 segment，保留已成功译文，并建立新的 session ID 以隔离上一轮迟到响应。
 

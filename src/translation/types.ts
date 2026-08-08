@@ -25,7 +25,7 @@ export interface ValidatedTranslation {
 }
 
 export type TranslationResultFailureReason =
-  'INVALID_RESPONSE' | 'MISSING_ID' | 'DUPLICATE_ID' | 'INVALID_TEXT';
+  'INVALID_RESPONSE' | 'OUTPUT_TRUNCATED' | 'MISSING_ID' | 'DUPLICATE_ID' | 'INVALID_TEXT';
 
 export interface TranslationSegmentFailure {
   id: string;

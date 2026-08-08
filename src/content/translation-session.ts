@@ -36,6 +36,7 @@ const FAILURE_LABELS: Record<PageTranslationFailureCode, string> = {
   INVALID_REQUEST: '请求被拒绝',
   INVALID_RESPONSE: '响应格式错误',
   NETWORK_ERROR: '网络错误',
+  OUTPUT_TRUNCATED: '模型输出被截断',
   RATE_LIMITED: '服务限流',
   REQUEST_TIMEOUT: '请求超时',
   SERVER_ERROR: '服务端错误',
