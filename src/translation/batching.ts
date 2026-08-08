@@ -9,18 +9,55 @@ function blockCharacterCount(block: TranslationBlock): number {
   );
 }
 
+function splitBlockToFit(block: TranslationBlock, characterLimit: number): TranslationBlock[] {
+  if (blockCharacterCount(block) <= characterLimit) return [block];
+
+  const parts: TranslationBlock[] = [];
+  let currentSegments: TranslationBlock['segments'] = [];
+  let currentSegmentCharacters = 0;
+
+  const pushPart = (): void => {
+    if (currentSegments.length === 0) return;
+    const availableContextCharacters = Math.max(0, characterLimit - currentSegmentCharacters);
+    parts.push({
+      id: `${block.id}:batch-part:${parts.length + 1}`,
+      context: block.context.slice(0, availableContextCharacters),
+      segments: currentSegments,
+    });
+    currentSegments = [];
+    currentSegmentCharacters = 0;
+  };
+
+  for (const segment of block.segments) {
+    const segmentCharacters = segment.id.length + segment.text.length;
+    const minimumContextCharacters = Math.min(block.context.length, 200);
+    if (
+      currentSegments.length > 0 &&
+      currentSegmentCharacters + segmentCharacters + minimumContextCharacters > characterLimit
+    ) {
+      pushPart();
+    }
+    currentSegments.push(segment);
+    currentSegmentCharacters += segmentCharacters;
+  }
+
+  pushPart();
+  return parts;
+}
+
 export function buildTranslationBatches(
   blocks: TranslationBlock[],
   characterLimit: number,
 ): TranslationBatch[] {
   const safeLimit = Number.isFinite(characterLimit)
-    ? Math.max(500, Math.floor(characterLimit))
+    ? Math.max(2_000, Math.floor(characterLimit))
     : 4_000;
   const batches: TranslationBatch[] = [];
   let currentBatch: TranslationBatch = [];
   let currentCharacters = 0;
 
-  for (const block of blocks) {
+  const normalizedBlocks = blocks.flatMap((block) => splitBlockToFit(block, safeLimit));
+  for (const block of normalizedBlocks) {
     const characters = blockCharacterCount(block);
     if (currentBatch.length > 0 && currentCharacters + characters > safeLimit) {
       batches.push(currentBatch);

@@ -18,3 +18,5 @@ interfaces and stored data formats may still change.
 - Provider, permission, credential encryption, and Ollama-compatible fixture coverage.
 - Initial static-page main-content detection, safe source collection, translation, and restore flow.
 - Popup controls for on-demand translation, progress polling, stopping, and original-text recovery.
+- Closed-Shadow-DOM page progress overlay with stop and restore controls.
+- Long-node splitting, time-sliced source collection, partial-failure handling, and cancellation guards.

@@ -8,7 +8,7 @@ import { buildTranslationBatches, mapWithConcurrency } from '../translation/batc
 import { detectMainContent } from './main-content';
 import {
   applyTranslations,
-  collectPageSources,
+  collectPageSourcesAsync,
   restoreOriginals,
   type SourceRecord,
 } from './source-collector';
@@ -58,7 +58,9 @@ export class PageTranslationSession {
       return;
     }
 
+    const expectedGeneration = this.generation + 1;
     void this.run(options).catch(() => {
+      if (this.generation !== expectedGeneration) return;
       this.setStatus({
         ...this.status,
         state: 'error',
@@ -117,7 +119,8 @@ export class PageTranslationSession {
       return;
     }
 
-    const collected = collectPageSources(detection.root, this.sessionId);
+    const collected = await collectPageSourcesAsync(detection.root, this.sessionId);
+    if (generation !== this.generation) return;
     if (collected.records.length === 0) {
       this.setStatus({
         ...IDLE_STATUS,
@@ -139,6 +142,8 @@ export class PageTranslationSession {
     });
 
     let lastError = '';
+    const accumulatedTranslations = new Map<string, string>();
+    const processedSegmentIds = new Set<string>();
     await mapWithConcurrency(batches, options.concurrency, async (blocks, batchIndex) => {
       if (generation !== this.generation || !this.root) return;
 
@@ -165,19 +170,28 @@ export class PageTranslationSession {
       }
 
       if (generation !== this.generation || !this.root) return;
-      const batchSegmentCount = blocks.reduce((total, block) => total + block.segments.length, 0);
+      for (const block of blocks) {
+        for (const segment of block.segments) processedSegmentIds.add(segment.id);
+      }
 
       if (!response?.ok) {
-        this.status.failed += batchSegmentCount;
         lastError = response?.message ?? '模型服务没有返回有效结果。';
       } else {
-        const translations = new Map(
-          response.result.translations.map((translation) => [translation.id, translation.text]),
-        );
-        const mutation = applyTranslations(this.root, this.records, translations);
-        this.status.translated += mutation.applied;
-        this.status.failed += response.result.failedIds.length + mutation.stale;
+        for (const translation of response.result.translations) {
+          accumulatedTranslations.set(translation.id, translation.text);
+        }
+        applyTranslations(this.root, this.records, accumulatedTranslations);
       }
+
+      const translatedRecordCount = this.records.filter(
+        (record) => record.appliedValue !== undefined,
+      ).length;
+      this.status.translated = translatedRecordCount;
+      this.status.failed = this.records.filter(
+        (record) =>
+          record.appliedValue === undefined &&
+          record.segments.every((segment) => processedSegmentIds.has(segment.id)),
+      ).length;
 
       this.setStatus({
         ...this.status,
@@ -186,6 +200,7 @@ export class PageTranslationSession {
     });
 
     if (generation !== this.generation) return;
+    this.status.failed = this.status.total - this.status.translated;
     const finalState = this.status.translated > 0 ? 'completed' : 'error';
     this.setStatus({
       ...this.status,

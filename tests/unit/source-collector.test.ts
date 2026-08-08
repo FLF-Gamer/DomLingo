@@ -4,6 +4,7 @@ import {
   applyTranslations,
   collectPageSources,
   restoreOriginals,
+  splitLongSourceText,
 } from '../../src/content/source-collector';
 
 describe('page source collection and DOM transactions', () => {
@@ -91,5 +92,25 @@ describe('page source collection and DOM transactions', () => {
 
     expect(restoreOriginals(root, collected.records)).toMatchObject({ restored: 0, stale: 1 });
     expect(root.querySelector('p')?.textContent).toBe('Website changed this value.');
+  });
+
+  it('splits oversized nodes near sentence boundaries and applies them as one transaction', () => {
+    const source = `${'A'.repeat(900)}. ${'B'.repeat(900)}. ${'C'.repeat(900)}.`;
+    const parts = splitLongSourceText(source, 1_000);
+    expect(parts).toHaveLength(3);
+    expect(parts.every((part) => part.length <= 1_000)).toBe(true);
+
+    document.body.innerHTML = `<main id="root"><p>${source}</p></main>`;
+    const root = document.querySelector<HTMLElement>('#root')!;
+    const collected = collectPageSources(root, 'long-session');
+    const record = collected.records[0]!;
+    expect(record.segments.length).toBeGreaterThan(1);
+
+    const incomplete = new Map([[record.segments[0]!.id, '第一部分。']]);
+    expect(applyTranslations(root, collected.records, incomplete).applied).toBe(0);
+    const complete = new Map(
+      record.segments.map((segment, index) => [segment.id, `第${index + 1}部分。`]),
+    );
+    expect(applyTranslations(root, collected.records, complete).applied).toBe(1);
   });
 });
