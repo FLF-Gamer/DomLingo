@@ -106,9 +106,7 @@ export function PopupApp() {
   return (
     <main className="popup-shell">
       <header className="popup-header">
-        <span className="brand-mark" aria-hidden="true">
-          D
-        </span>
+        <img className="brand-mark" src="/icons/icon-128.png" alt="" width={40} height={40} />
         <div>
           <h1>{PRODUCT_FULL_NAME}</h1>
           <p>
@@ -165,6 +163,8 @@ export function PopupApp() {
           恢复原文
         </button>
       </div>
+
+      <p className="selection-hint">右键“AI 翻译”：有选中文字时只翻译选区，未选中时翻译整页。</p>
 
       <button type="button" className="settings-button" onClick={openSettings}>
         打开设置
