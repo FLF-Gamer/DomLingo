@@ -1,6 +1,6 @@
 {
   "name": "domlingo-extension",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Use your own LLM API to translate English webpage content into Simplified Chinese.",
   "private": true,
   "type": "module",
