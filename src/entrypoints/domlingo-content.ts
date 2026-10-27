@@ -24,6 +24,7 @@ export default defineUnlistedScript(() => {
         sendResponse(session.getStatus());
         return false;
       case 'CONTENT_START_TRANSLATION':
+      case 'CONTENT_START_SELECTION_TRANSLATION':
       case 'CONTENT_RETRY_FAILED':
         if (
           command.options &&
@@ -32,6 +33,8 @@ export default defineUnlistedScript(() => {
         ) {
           if (command.type === 'CONTENT_START_TRANSLATION') {
             session.start(command.options);
+          } else if (command.type === 'CONTENT_START_SELECTION_TRANSLATION') {
+            session.startSelection(command.options);
           } else {
             session.retryFailed(command.options);
           }
