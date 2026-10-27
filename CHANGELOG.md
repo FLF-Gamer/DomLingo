@@ -9,11 +9,21 @@ interfaces and stored data formats may still change.
 
 ### Added
 
-- A single “DomLingo: AI translate current page” context-menu action that reuses the existing translation flow and opens Settings when configuration is missing.
+- A single “DomLingo：AI 翻译” context-menu action that translates selected text when present, otherwise translates the page, and opens Settings when configuration is missing. Keeping one visible item avoids Chrome's automatic submenu grouping; upgrading removes the previous separate selection item.
+- In-place translation of a selected sentence or several paragraphs, without sending surrounding text or attributes. Successive selections support stop, latest-selection retry, and reverse-order original-text recovery, including multiple slices of the same text node.
+- Illustrated README instructions for model setup and the two translation modes, including real Chrome context-menu screenshots with visible text selection, the actual Settings UI, and local sample-page results with fixed demonstration translations. Browser chrome, accounts, bookmarks, other tabs, and API keys are excluded from saved images.
+- A DomLingo app icon in 16, 32, 48, and 128 pixel sizes for the Chrome toolbar, extension management, popup branding, and extension-page favicons.
 
 ### Changed
 
+- CI installs the matching Chromium build and system dependencies for the selection-translation browser regression tests.
 - Completed semantic blocks now write back immediately instead of waiting for earlier concurrent batches, while split paragraphs, list items, and table rows remain atomic.
+- Translation session IDs use secure random bytes on HTTP pages as well as HTTPS, without requiring the secure-context-only `randomUUID` API.
+
+### Fixed
+
+- Switching from a selection translation to a whole-page translation no longer requires a manual restore. Pending selection requests are cancelled, earlier partial changes are restored, and the article is translated from its original text; late selection responses cannot overwrite the new page task.
+- Consumed selections are cleared, and an empty context-menu `selectionText` correctly starts page translation on the next blank-space action.
 
 ## [0.1.0-alpha.0] - 2026-08-08
 

@@ -22,12 +22,17 @@ export interface SourceRecord {
   segments: TranslationSegment[];
   target: Text | HTMLElement;
   attribute?: SupportedAttribute;
+  textRange?: { start: number; end: number };
   appliedValue?: string;
 }
 
 export interface CollectedPageSources {
   records: SourceRecord[];
   blocks: TranslationBlock[];
+}
+
+export interface CollectedSelectionSources extends CollectedPageSources {
+  root: HTMLElement;
 }
 
 export interface MutationSummary {
@@ -113,8 +118,10 @@ function addRecord(
   target: Text | HTMLElement,
   root: HTMLElement,
   attribute?: SupportedAttribute,
+  textRange?: SourceRecord['textRange'],
 ): void {
-  const { leadingWhitespace, sourceText, trailingWhitespace } = splitWhitespace(value);
+  const selectedValue = textRange ? value.slice(textRange.start, textRange.end) : value;
+  const { leadingWhitespace, sourceText, trailingWhitespace } = splitWhitespace(selectedValue);
   if (!sourceText || !containsEnglish(sourceText)) return;
 
   const element = target instanceof Text ? target.parentElement : target;
@@ -144,6 +151,7 @@ function addRecord(
     segments,
     target,
     ...(attribute ? { attribute } : {}),
+    ...(textRange ? { textRange } : {}),
   });
 }
 
@@ -264,9 +272,74 @@ export async function collectPageSourcesAsync(
   return buildCollectedPageSources(root, records);
 }
 
+export async function collectSelectionSourcesAsync(
+  range: Range,
+  sessionId: string,
+  yieldEvery = 50,
+  shouldContinue: () => boolean = () => true,
+): Promise<CollectedSelectionSources | undefined> {
+  const ancestor = range.commonAncestorContainer;
+  const root = ancestor instanceof HTMLElement ? ancestor : ancestor.parentElement;
+  if (
+    range.collapsed ||
+    !(root instanceof HTMLElement) ||
+    !root.isConnected ||
+    root.getRootNode() !== root.ownerDocument ||
+    isExcludedElement(root) ||
+    !isElementVisible(root)
+  ) {
+    return undefined;
+  }
+
+  const records: SourceRecord[] = [];
+  const blockIds = new Map<HTMLElement, string>();
+  const safeYieldEvery = Number.isFinite(yieldEvery) ? Math.max(1, Math.floor(yieldEvery)) : 50;
+  const walker = root.ownerDocument.createTreeWalker(
+    root,
+    NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (!range.intersectsNode(node)) return NodeFilter.FILTER_REJECT;
+        const element = node instanceof Element ? node : node.parentElement;
+        if (
+          !element ||
+          isExcludedElement(element) ||
+          element.closest(
+            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+          ) ||
+          !isElementVisible(element)
+        ) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return node instanceof Text ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      },
+    },
+  );
+
+  let scanned = 0;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!shouldContinue()) return undefined;
+    const target = node as Text;
+    const value = target.data;
+    const start = target === range.startContainer ? range.startOffset : 0;
+    const end = target === range.endContainer ? range.endOffset : value.length;
+    if (start < end) {
+      addRecord(records, blockIds, sessionId, 'text-node', value, target, root, undefined, {
+        start,
+        end,
+      });
+    }
+    scanned += 1;
+    if (scanned % safeYieldEvery === 0) await yieldToMainThread(root.ownerDocument);
+  }
+
+  return { root, ...buildCollectedPageSources(root, records, true) };
+}
+
 function buildCollectedPageSources(
   root: HTMLElement,
   records: SourceRecord[],
+  selectedOnly = false,
 ): CollectedPageSources {
   const blockById = new Map<string, TranslationBlock>();
   for (const record of records) {
@@ -274,9 +347,14 @@ function buildCollectedPageSources(
     if (!block) {
       const element = record.target instanceof Text ? record.target.parentElement : record.target;
       const semanticBlock = element ? nearestSemanticBlock(element, root) : root;
-      block = { id: record.blockId, context: contextForBlock(semanticBlock), segments: [] };
+      block = {
+        id: record.blockId,
+        context: selectedOnly ? '' : contextForBlock(semanticBlock),
+        segments: [],
+      };
       blockById.set(record.blockId, block);
     }
+    if (selectedOnly) block.context = normalizeContext(`${block.context} ${record.sourceText}`);
     block.segments.push(...record.segments);
   }
 
@@ -350,7 +428,9 @@ export function applyTranslations(
     for (let index = 0; index < pending.length; index += 1) {
       const record = pending[index]!;
       const translatedParts = translatedByRecord[index] as string[];
-      const appliedValue = `${record.leadingWhitespace}${translatedParts.join('')}${record.trailingWhitespace}`;
+      const prefix = record.textRange ? record.originalValue.slice(0, record.textRange.start) : '';
+      const suffix = record.textRange ? record.originalValue.slice(record.textRange.end) : '';
+      const appliedValue = `${prefix}${record.leadingWhitespace}${translatedParts.join('')}${record.trailingWhitespace}${suffix}`;
       writeRecordValue(record, appliedValue);
       record.appliedValue = appliedValue;
       summary.applied += 1;

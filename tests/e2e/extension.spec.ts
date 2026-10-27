@@ -29,3 +29,24 @@ test('extension pages do not preload shared chunks across Chrome worlds', () => 
     expect(readFileSync(htmlPath, 'utf8')).not.toContain('rel="modulepreload"');
   }
 });
+
+test('extension and toolbar icons are packaged at their declared PNG sizes', () => {
+  const output = resolve(process.cwd(), '.output/chrome-mv3');
+  const manifest = JSON.parse(readFileSync(resolve(output, 'manifest.json'), 'utf8')) as {
+    icons: Record<string, string>;
+    action: { default_icon: Record<string, string> };
+  };
+
+  expect(manifest.action.default_icon).toEqual(manifest.icons);
+  expect(Object.keys(manifest.icons).sort()).toEqual(['128', '16', '32', '48']);
+  for (const [size, path] of Object.entries(manifest.icons)) {
+    const png = readFileSync(resolve(output, path));
+    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    expect(png.readUInt32BE(16)).toBe(Number(size));
+    expect(png.readUInt32BE(20)).toBe(Number(size));
+  }
+
+  for (const page of ['popup.html', 'options.html']) {
+    expect(readFileSync(resolve(output, page), 'utf8')).toContain('icons/icon-32.png');
+  }
+});

@@ -12,7 +12,9 @@ import { detectMainContentAsync } from './main-content';
 import {
   applyTranslations,
   collectPageSourcesAsync,
+  collectSelectionSourcesAsync,
   restoreOriginals,
+  type CollectedPageSources,
   type SourceRecord,
 } from './source-collector';
 
@@ -99,13 +101,22 @@ function formatFailureDetails(details: PageTranslationFailureDetails): string {
     .join('、');
 }
 
+function createSessionId(): string {
+  // getRandomValues is also available on HTTP pages, where randomUUID may be missing.
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) =>
+    value.toString(16).padStart(2, '0'),
+  ).join('');
+}
+
 export class PageTranslationSession {
   private status: PageTranslationStatus = { ...IDLE_STATUS };
   private root: HTMLElement | undefined;
   private records: SourceRecord[] = [];
+  private restoreHistory: SourceRecord[] = [];
   private blocks: TranslationBlock[] = [];
   private sessionId = '';
   private generation = 0;
+  private scope: 'page' | 'selection' | undefined;
   private lastOptions: TranslationSessionOptions | undefined;
   private readonly translations = new Map<string, string>();
 
@@ -124,19 +135,46 @@ export class PageTranslationSession {
   }
 
   start(options: TranslationSessionOptions): void {
+    if (this.scope === 'selection') this.restore();
+    this.startRun(options);
+  }
+
+  startSelection(options: TranslationSessionOptions): void {
     if (this.status.state === 'scanning' || this.status.state === 'translating') return;
-    if (this.records.some((record) => record.appliedValue !== undefined)) {
+    const selection = this.document.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      this.setStatus({
+        ...this.status,
+        state: 'error',
+        message: '请先在网页正文中选中需要翻译的英文内容，再右键翻译。',
+      });
+      return;
+    }
+    const range = selection.getRangeAt(0).cloneRange();
+    this.startRun(options, range);
+    // The snapshot belongs to this request; leave the next right click free to choose page mode.
+    selection.removeAllRanges();
+  }
+
+  private startRun(options: TranslationSessionOptions, selectionRange?: Range): void {
+    if (this.status.state === 'scanning' || this.status.state === 'translating') return;
+    if (
+      !selectionRange &&
+      (this.restoreHistory.length > 0 ||
+        this.records.some((record) => record.appliedValue !== undefined))
+    ) {
       this.setStatus({
         ...this.status,
         state: 'completed',
-        message: '当前页面已经翻译，可先恢复原文。',
+        message: '当前页面已有整页译文，可先恢复原文后重新翻译。',
       });
       return;
     }
 
+    this.scope = selectionRange ? 'selection' : 'page';
     this.lastOptions = options;
     const expectedGeneration = this.generation + 1;
-    void this.run(options).catch(() => {
+    void this.run(options, selectionRange).catch(() => {
       if (this.generation !== expectedGeneration) return;
       this.setStatus({
         ...this.status,
@@ -182,9 +220,11 @@ export class PageTranslationSession {
     if (cancelledSessionId) this.cancelBackgroundSession(cancelledSessionId);
     this.root = undefined;
     this.records = [];
+    this.restoreHistory = [];
     this.blocks = [];
     this.translations.clear();
     this.sessionId = '';
+    this.scope = undefined;
     this.setStatus({
       ...IDLE_STATUS,
       state: 'stopped',
@@ -198,12 +238,18 @@ export class PageTranslationSession {
     this.generation += 1;
     if (cancelledSessionId) this.cancelBackgroundSession(cancelledSessionId);
 
-    if (this.root) restoreOriginals(this.root, this.records);
+    // Later selections can translate another slice of the same Text node. Undo them in reverse.
+    restoreOriginals(
+      this.document.documentElement,
+      [...this.restoreHistory, ...this.records].reverse(),
+    );
     this.root = undefined;
     this.records = [];
+    this.restoreHistory = [];
     this.blocks = [];
     this.translations.clear();
     this.sessionId = '';
+    this.scope = undefined;
     this.setStatus({ ...IDLE_STATUS, message: '已恢复本次会话修改的原文。' });
     return this.getStatus();
   }
@@ -235,7 +281,7 @@ export class PageTranslationSession {
     this.lastOptions = options;
     this.generation += 1;
     const generation = this.generation;
-    this.sessionId = crypto.randomUUID();
+    this.sessionId = createSessionId();
     this.setStatus({
       ...this.status,
       state: 'translating',
@@ -259,47 +305,83 @@ export class PageTranslationSession {
     void chrome.runtime.sendMessage(message).catch(() => undefined);
   }
 
-  private async run(options: TranslationSessionOptions): Promise<void> {
+  private async run(options: TranslationSessionOptions, selectionRange?: Range): Promise<void> {
     this.generation += 1;
     const generation = this.generation;
-    this.sessionId = crypto.randomUUID();
+    this.sessionId = createSessionId();
+    this.restoreHistory.push(...this.records.filter((record) => record.appliedValue !== undefined));
+    this.root = undefined;
+    this.records = [];
+    this.blocks = [];
     this.translations.clear();
-    this.setStatus({ ...IDLE_STATUS, state: 'scanning', message: '正在识别网页正文…' });
-
-    const detection = await detectMainContentAsync(this.document, {
-      shouldContinue: () => generation === this.generation,
+    const baseStatus: PageTranslationStatus = {
+      ...IDLE_STATUS,
+      total: this.restoreHistory.length,
+      translated: this.restoreHistory.length,
+    };
+    this.setStatus({
+      ...baseStatus,
+      state: 'scanning',
+      message: selectionRange ? '正在识别选中的正文…' : '正在识别网页正文…',
     });
-    if (generation !== this.generation) return;
-    if (!detection) {
-      this.setStatus({
-        ...IDLE_STATUS,
-        state: 'error',
-        message: '未识别到正文区域，本页未进行任何修改。',
-      });
-      return;
-    }
 
-    const collected = await collectPageSourcesAsync(detection.root, this.sessionId);
+    let root: HTMLElement;
+    let collected: CollectedPageSources;
+    if (selectionRange) {
+      const selection = await collectSelectionSourcesAsync(
+        selectionRange,
+        this.sessionId,
+        50,
+        () => generation === this.generation,
+      );
+      if (generation !== this.generation) return;
+      if (!selection || selection.records.length === 0) {
+        this.setStatus({
+          ...baseStatus,
+          state: 'error',
+          message: '选中的内容中没有可翻译的英文正文，请重新选择。',
+        });
+        return;
+      }
+      root = selection.root;
+      collected = selection;
+    } else {
+      const detection = await detectMainContentAsync(this.document, {
+        shouldContinue: () => generation === this.generation,
+      });
+      if (generation !== this.generation) return;
+      if (!detection) {
+        this.setStatus({
+          ...baseStatus,
+          state: 'error',
+          message: '未识别到正文区域，本页未进行任何修改。',
+        });
+        return;
+      }
+
+      root = detection.root;
+      collected = await collectPageSourcesAsync(root, this.sessionId);
+    }
     if (generation !== this.generation) return;
     if (collected.records.length === 0) {
       this.setStatus({
-        ...IDLE_STATUS,
+        ...baseStatus,
         state: 'error',
         message: '正文中没有找到可翻译的英文内容。',
       });
       return;
     }
 
-    this.root = detection.root;
+    this.root = root;
     this.records = collected.records;
     this.blocks = collected.blocks;
     this.setStatus({
       state: 'translating',
-      total: collected.records.length,
-      translated: 0,
+      total: this.restoreHistory.length + collected.records.length,
+      translated: this.restoreHistory.length,
       failed: 0,
       failureDetails: {},
-      message: `正在翻译 0 / ${collected.records.length}…`,
+      message: selectionRange ? '正在翻译选中的内容…' : `正在翻译 0 / ${collected.records.length}…`,
     });
     await this.translateBlocks(collected.blocks, options, generation);
   }
@@ -348,9 +430,9 @@ export class PageTranslationSession {
         staleRecordIds,
         false,
       );
-      this.status.translated = this.records.filter(
-        (record) => record.appliedValue !== undefined,
-      ).length;
+      this.status.translated =
+        this.restoreHistory.length +
+        this.records.filter((record) => record.appliedValue !== undefined).length;
       this.status.failed = failureCount(failureDetails);
       this.status.failureDetails = failureDetails;
       this.setStatus({
@@ -399,7 +481,9 @@ export class PageTranslationSession {
     );
     this.status.failureDetails = finalFailureDetails;
     this.status.failed = failureCount(finalFailureDetails);
-    const finalState = this.status.translated > 0 ? 'completed' : 'error';
+    const finalState = this.records.some((record) => record.appliedValue !== undefined)
+      ? 'completed'
+      : 'error';
     const failureSummary = formatFailureDetails(finalFailureDetails);
     this.setStatus({
       ...this.status,
@@ -407,7 +491,7 @@ export class PageTranslationSession {
       message:
         finalState === 'completed'
           ? `翻译完成：成功 ${this.status.translated}，失败 ${this.status.failed}。${failureSummary ? `失败原因：${failureSummary}。` : ''}`
-          : `${lastError || '没有节点翻译成功，页面保持原文。'}${failureSummary ? ` 失败原因：${failureSummary}。` : ''}`,
+          : `${lastError || (this.restoreHistory.length > 0 ? '本次内容没有翻译成功，已有译文保持不变。' : '没有节点翻译成功，页面保持原文。')}${failureSummary ? ` 失败原因：${failureSummary}。` : ''}`,
     });
   }
 }

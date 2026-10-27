@@ -78,7 +78,7 @@ async function sendContentMessage(
   tabId: number,
   message: ContentCommandMessage,
 ): Promise<PageTranslationStatus> {
-  return (await chrome.tabs.sendMessage(tabId, message)) as PageTranslationStatus;
+  return (await chrome.tabs.sendMessage(tabId, message, { frameId: 0 })) as PageTranslationStatus;
 }
 
 async function getContentStatus(tabId: number): Promise<PageTranslationStatus | undefined> {
@@ -115,7 +115,11 @@ async function handlePopupControl(
     return success((await getContentStatus(message.tabId)) ?? IDLE_PAGE_STATUS);
   }
 
-  if (message.type === 'START_TRANSLATION' || message.type === 'RETRY_FAILED_TRANSLATION') {
+  if (
+    message.type === 'START_TRANSLATION' ||
+    message.type === 'START_SELECTION_TRANSLATION' ||
+    message.type === 'RETRY_FAILED_TRANSLATION'
+  ) {
     const endpoint = validateProviderEndpoint(settings.endpoint);
     if (!endpoint.ok || !settings.model.trim()) {
       return { ok: false, code: 'CONFIG_REQUIRED', message: '请先完成模型服务配置。' };
@@ -138,12 +142,14 @@ async function handlePopupControl(
 
     try {
       await ensureContentScript(message.tabId);
+      const contentTypes = {
+        START_TRANSLATION: 'CONTENT_START_TRANSLATION',
+        START_SELECTION_TRANSLATION: 'CONTENT_START_SELECTION_TRANSLATION',
+        RETRY_FAILED_TRANSLATION: 'CONTENT_RETRY_FAILED',
+      } as const;
       const contentMessage: ContentCommandMessage = {
         version: 1,
-        type:
-          message.type === 'START_TRANSLATION'
-            ? 'CONTENT_START_TRANSLATION'
-            : 'CONTENT_RETRY_FAILED',
+        type: contentTypes[message.type],
         options: {
           batchCharacterLimit: settings.batchCharacterLimit,
           concurrency: settings.concurrency,
@@ -237,6 +243,8 @@ export default defineBackground(() => {
     onInstalled: chrome.runtime.onInstalled,
     startTranslation: (tabId) =>
       handlePopupControl({ version: 1, type: 'START_TRANSLATION', tabId }),
+    startSelectionTranslation: (tabId) =>
+      handlePopupControl({ version: 1, type: 'START_SELECTION_TRANSLATION', tabId }),
     openSettings: () => chrome.runtime.openOptionsPage(),
   });
 

@@ -55,15 +55,11 @@ button {
 }
 
 .brand-mark {
-  display: grid;
+  display: block;
+  flex-shrink: 0;
   width: 40px;
   height: 40px;
-  place-items: center;
-  border-radius: 12px;
-  color: #fff;
-  background: #4f46e5;
-  font-size: 20px;
-  font-weight: 700;
+  object-fit: contain;
 }
 
 .status-card {
@@ -124,6 +120,13 @@ button {
   color: #fff;
   background: #4f46e5;
   font-weight: 600;
+}
+
+.selection-hint {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.65;
 }
 
 .primary-button--stop {

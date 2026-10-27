@@ -39,6 +39,12 @@ export interface StartTranslationMessage {
   tabId: number;
 }
 
+export interface StartSelectionTranslationMessage {
+  version: 1;
+  type: 'START_SELECTION_TRANSLATION';
+  tabId: number;
+}
+
 export interface RetryFailedTranslationMessage {
   version: 1;
   type: 'RETRY_FAILED_TRANSLATION';
@@ -65,6 +71,7 @@ export interface GetTabStatusMessage {
 
 export type PopupControlMessage =
   | StartTranslationMessage
+  | StartSelectionTranslationMessage
   | RetryFailedTranslationMessage
   | StopTranslationMessage
   | RestoreOriginalMessage
@@ -85,6 +92,15 @@ export interface CancelSessionMessage {
 export interface StartContentTranslationMessage {
   version: 1;
   type: 'CONTENT_START_TRANSLATION';
+  options: {
+    batchCharacterLimit: number;
+    concurrency: number;
+  };
+}
+
+export interface StartContentSelectionTranslationMessage {
+  version: 1;
+  type: 'CONTENT_START_SELECTION_TRANSLATION';
   options: {
     batchCharacterLimit: number;
     concurrency: number;
@@ -122,6 +138,7 @@ export interface PingContentMessage {
 
 export type ContentCommandMessage =
   | StartContentTranslationMessage
+  | StartContentSelectionTranslationMessage
   | RetryFailedContentTranslationMessage
   | StopContentTranslationMessage
   | RestoreContentOriginalMessage
@@ -173,6 +190,7 @@ export function isPopupControlMessage(value: unknown): value is PopupControlMess
     value.version === 1 &&
     [
       'START_TRANSLATION',
+      'START_SELECTION_TRANSLATION',
       'RETRY_FAILED_TRANSLATION',
       'STOP_TRANSLATION',
       'RESTORE_ORIGINAL',

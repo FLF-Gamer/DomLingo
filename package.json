@@ -14,6 +14,7 @@
     "build": "wxt build",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
     "dev": "wxt",
+    "docs:screenshots": "pnpm build && node scripts/capture-readme.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,html}\" \"tests/**/*.{ts,tsx}\" \"*.{json,js,mjs,ts,yml,yaml}\" \".github/**/*.{md,yml,yaml}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,html}\" \"tests/**/*.{ts,tsx}\" \"*.{json,js,mjs,ts,yml,yaml}\" \".github/**/*.{md,yml,yaml}\"",
     "lint": "eslint src tests *.config.ts wxt.config.ts --max-warnings 0",

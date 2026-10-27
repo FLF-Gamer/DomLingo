@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文档版本 | 0.3 |
+| 文档版本 | 0.4 |
 | 文档状态 | MVP 设计基线 |
 | 对应 PRD | [DomLingo 产品需求文档](product-requirements.md) |
 | 目标运行环境 | Chrome、Manifest V3 |
@@ -17,7 +17,7 @@
 | 扩展构建 | WXT；使用其 Manifest V3、Vite 和多入口能力 |
 | 浏览器范围 | MVP 只验证和发布 Chrome |
 | 翻译协议 | OpenAI-compatible `chat/completions` |
-| 翻译范围 | 自动识别出的正文根节点 |
+| 翻译范围 | 自动识别出的正文根节点，或用户主动选中的正文文本范围 |
 | DOM 修改 | 只写 Text 节点和白名单文本属性 |
 | 动态内容 | MVP 支持新增正文和 SPA 根节点变化 |
 | 目标语言 | 固定简体中文 |
@@ -175,8 +175,10 @@ export default defineConfig({
 
 ### 5.1 页面权限
 
+生产配置还为 `manifest.icons` 和 `action.default_icon` 指定 `public/icons/` 中的 16、32、48、128 像素 PNG。两者使用同一资源映射，Popup 使用相同图标，Popup 与 Options HTML 配置 favicon。品牌源图与生成提示词见 [图标说明](../assets/branding/README.md)。这些静态资源不引入新权限。
+
 - `activeTab`：用户点击扩展按钮或 DomLingo 右键菜单后临时访问当前页面；
-- `contextMenus`：只注册一个“DomLingo：AI 翻译当前页面”快捷入口，不读取页面内容；
+- `contextMenus`：只注册一个“DomLingo：AI 翻译”快捷入口，点击后按 `selectionText` 路由整页或选区任务；
 - `scripting`：按需注入 Content Script；
 - 不在安装时声明 `<all_urls>` 的必需页面访问权限；
 - Chrome 内部页、商店页和其他受保护页面在执行前识别并返回可理解错误。
@@ -185,12 +187,14 @@ Popup 或右键菜单发起翻译时先向当前 Tab 发送 `PING`。如果没�
 
 ### 5.2 右键快捷翻译
 
-- 扩展安装或更新时注册固定 ID 的单项菜单，避免重复创建；
-- 菜单标题为“DomLingo：AI 翻译当前页面”，只显示在普通 HTTP/HTTPS 文档；
-- 页面内任意右键上下文使用同一个入口，不增加停止、失败重试或恢复原文子菜单；
-- 点击后复用 Popup 的 `START_TRANSLATION` 配置校验、权限检查、Content Script 注入和会话启动流程；
+- 扩展安装或更新时移除旧的整页与选区菜单，只创建一个固定 ID 的快捷入口；
+- 菜单标题为“DomLingo：AI 翻译”，使用 `all` 上下文，只显示在普通 HTTP/HTTPS 文档；具体模式与操作步骤放在 README 图文说明中；
+- Chrome 会将同一扩展同时可见的多项菜单自动折叠，因此不同时创建两个模式入口，也不添加停止、重试或恢复子菜单；参见 [Chrome contextMenus 文档](https://developer.chrome.com/docs/extensions/reference/api/contextMenus)；
+- `onClicked` 中非空 `selectionText` 走 `START_SELECTION_TRANSLATION`，不存在或为空字符串时走 `START_TRANSLATION`；仅空白字符的选区、可编辑控件和子 frame 选区不降级为全文翻译；
+- 两种模式都复用现有配置校验、权限检查、Content Script 注入和会话启动流程；
 - 配置缺失、API Key 缺失或 API 域名权限失效时直接打开 Options；
 - 翻译进度、停止、重试和恢复继续由 Popup 与页面浮层负责。
+- 选区入口走 `START_SELECTION_TRANSLATION` → `CONTENT_START_SELECTION_TRANSLATION`，不依赖全文正文评分，也不在选区失效时回退到全文；菜单忽略可编辑控件和子 frame 的选区，后台命令明确只发往主 frame。
 
 ### 5.3 API 域名权限
 
@@ -362,8 +366,8 @@ ERROR
 
 ### 7.2 幂等规则
 
-- 一个 DOM 文本位置只创建一个活动 `SourceRecord`；
-- 已翻译节点不会再次采集，除非网站主动把内容改成新的英文；
+- 单次任务中，一个 DOM 文本位置只创建一个活动 `SourceRecord`；
+- 整页翻译不会重复采集已有译文；用户显式选中同一节点的其他英文片段时，建立新的局部替换记录；
 - 写入译文前检查 `sessionId`、节点仍连接、当前值仍与期望前置值一致；
 - 网站在请求期间修改节点时，该响应标记为 stale，不覆盖网站的新值；
 - 停止后递增会话 generation，旧响应自动失效。
@@ -448,6 +452,24 @@ tr, dt, dd, button, label
 
 超长单节点按句子边界拆为多个子段，返回后按顺序拼接。普通文本以段落、列表项或表格行为
 原子事务写回；白名单属性仍按属性节点独立写回。
+
+### 9.4 用户选区
+
+Content Script 在收到选区启动命令时立即克隆当前 `Range`，随后取消当前选择；后续用户改变高亮范围不会扩大本次任务，也不会将旧高亮带入下一次右键操作。
+以选区共同祖先为扫描根，使用带 `intersectsNode` 过滤的 TreeWalker 排除选区外的子树；只采集
+合格文本节点，不采集属性。每 50 个文本节点让出主线程并检查 generation，停止或导航可以取消扫描。
+
+每条局部记录额外保存 `textRange: { start, end }`。`originalValue` 保存完整节点的前置值，
+`sourceText` 和 segment 仅包含选区内文字；块上下文也仅由本次选中的可翻译片段组成。
+写回先校验完整前置值，再拼接未选中的前缀、译文和未选中的后缀；不拆分节点、不插入 HTML。
+
+开始下一个选区任务时，将已写回的记录移入恢复历史，丢弃上一轮未成功的工作队列；重试只处理
+最新任务。恢复时逆序处理历史与当前记录，使同一 Text 节点先后翻译不同句子也能还原；节点已被
+网站修改则跳过。历史保存在当前页面内存，导航或恢复后清空。
+
+会话单独记录当前范围 `scope`。从选区切换到整页时，先取消旧请求、递增 generation，并逆序恢复
+已有局部译文，再从完整原文重新采集整页内容。此切换允许发生在选区扫描中、翻译中、已停止或已完成
+时，旧响应不得写回新任务；不要求用户手动恢复。整页译文已存在时仍保持原来的重复启动保护。
 
 ## 10. 可视区域优先级
 
@@ -698,6 +720,7 @@ MVP 不主动穿透：
 type ExtensionMessage =
   | { version: 1; type: 'PING' }
   | { version: 1; type: 'START_TRANSLATION'; tabId: number }
+  | { version: 1; type: 'START_SELECTION_TRANSLATION'; tabId: number }
   | { version: 1; type: 'STOP_TRANSLATION'; tabId: number }
   | { version: 1; type: 'RESTORE_ORIGINAL'; tabId: number }
   | { version: 1; type: 'GET_TAB_STATUS'; tabId: number }
@@ -1021,7 +1044,6 @@ interface SafeLogEvent {
 - 开放 Shadow DOM；
 - 术语表和翻译记忆；
 - 模型请求成本估算；
-- 选中文本翻译；
 - 本地模型自动发现；
 - 可选双语模式。
 
