@@ -31,7 +31,9 @@ DomLingo 是一个 Chrome 网页翻译扩展。它使用你自己的大模型 AP
 
 ### GitHub Releases
 
-从 [GitHub Releases](https://github.com/FLF-Gamer/DomLingo/releases) 下载最新的 `domlingo-chrome-unpacked-<version>.zip`：
+当前开发者预览版为 [v0.1.0-alpha.1](https://github.com/FLF-Gamer/DomLingo/releases/tag/v0.1.0-alpha.1)，包含选区翻译、并行即时显示和新版图标。
+
+下载 [domlingo-chrome-unpacked-0.1.0-alpha.1.zip](https://github.com/FLF-Gamer/DomLingo/releases/download/v0.1.0-alpha.1/domlingo-chrome-unpacked-0.1.0-alpha.1.zip)，或在 [GitHub Releases](https://github.com/FLF-Gamer/DomLingo/releases) 中查看其他版本：
 
 1. 解压下载的 ZIP；
 2. 打开 `chrome://extensions`；
@@ -39,7 +41,7 @@ DomLingo 是一个 Chrome 网页翻译扩展。它使用你自己的大模型 AP
 4. 点击“加载已解压的扩展程序”；
 5. 选择解压后的扩展目录。
 
-GitHub 开发者版本不会自动更新。Chrome Web Store 版本将在项目稳定后提供。
+可使用 Release 随附的 `SHA256SUMS` 校验 ZIP。GitHub 开发者版本不会自动更新；更新时，将新版文件解压到原来加载的扩展目录，再在扩展管理页点击“重新加载”，无需先卸载扩展。Chrome Web Store 版本将在项目稳定后提供。
 
 ### 从源码安装最新开发版本
 
