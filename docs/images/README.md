@@ -2,10 +2,19 @@
 
 ## 图像来源
 
+- `claude-code-selection-demo.gif`：[Claude Code 公开官网](https://claude.com/product/claude-code)上的选区翻译操作截图剪辑，展示选中文字、右键翻译和原位显示译文。动图为 1440 × 900、约 11 秒，等待时间已压缩。
 - `model-settings.png`：本地构建产物中的实际设置界面，使用空的演示存储，API Key 为空。
 - `page-context-menu.png`：真实 Chrome 的整页翻译右键菜单，未选中文字，高亮 DomLingo 菜单项。
 - `selection-context-menu.png`：真实 Chrome 的选区翻译右键菜单，保留英文段落的选区高亮，同时高亮 DomLingo 菜单项。
 - `page-translation.png` 和 `selection-translation.png`：实际打包后的 Content Script 在本地示例页中运行的结果；模型响应为固定测试数据，没有调用真实模型。
+
+## 官网演示动图
+
+README 的“效果演示”直接引用本目录的 `claude-code-selection-demo.gif`，无需外部视频平台或图床。
+
+更新动图时，使用公开网页，保留清晰的选区高亮、真实右键入口和翻译结果。若剪辑等待过程，应在 README 中保留说明，不将演示时长当作固定翻译速度。导出后检查完整循环，确认画面没有账号、浏览器顶部或模型密钥。
+
+`pnpm docs:screenshots` 不会覆盖官网演示动图。
 
 ## 更新设置与结果图
 
@@ -30,7 +39,7 @@ pnpm docs:screenshots
 
 ## 隐私要求
 
-- 示例文本全部为项目编写，不使用真实浏览内容。
+- 静态操作图和结果图只使用项目编写的本地示例内容；官网演示动图只使用公开网页，不使用个人浏览内容。
 - 排除整个浏览器顶部，包括头像、账号、地址栏、标签页和书签栏。
 - 不展示扩展设置中的 API Key，不打开账号或设备相关子菜单。
 - 不保存完整窗口图或浏览器 Profile；只保留已经裁剪检查的结果。
