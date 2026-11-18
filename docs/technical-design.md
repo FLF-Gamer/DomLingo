@@ -17,7 +17,7 @@
 | 扩展构建 | WXT；使用其 Manifest V3、Vite 和多入口能力 |
 | 浏览器范围 | MVP 只验证和发布 Chrome |
 | 翻译协议 | OpenAI-compatible `chat/completions` |
-| 翻译范围 | 自动识别出的正文根节点，或用户主动选中的正文文本范围 |
+| 翻译范围 | 网页正文根节点、网页文本选区、原生 PDF 阅读器中的文本选区，或独立 PDF 阅读页中的矩形文字选区 |
 | DOM 修改 | 只写 Text 节点和白名单文本属性 |
 | 动态内容 | MVP 支持新增正文和 SPA 根节点变化 |
 | 目标语言 | 固定简体中文 |
@@ -163,7 +163,8 @@ export default defineConfig({
   manifest: {
     name: 'DomLingo - 原页译',
     description: '使用你自己的大模型 API，在原网页中翻译英文正文。',
-    permissions: ['activeTab', 'contextMenus', 'scripting', 'storage'],
+    permissions: ['activeTab', 'contextMenus', 'scripting', 'storage', 'sidePanel'],
+    minimum_chrome_version: '116',
     optional_host_permissions: [
       'https://*/*',
       'http://localhost/*',
@@ -180,6 +181,7 @@ export default defineConfig({
 - `activeTab`：用户点击扩展按钮或 DomLingo 右键菜单后临时访问当前页面；
 - `contextMenus`：只注册一个“DomLingo：AI 翻译”快捷入口，点击后按 `selectionText` 路由整页或选区任务；
 - `scripting`：按需注入 Content Script；
+- `sidePanel`：在浏览器侧栏显示 PDF 选区译文，不覆盖 PDF 原文；
 - 不在安装时声明 `<all_urls>` 的必需页面访问权限；
 - Chrome 内部页、商店页和其他受保护页面在执行前识别并返回可理解错误。
 
@@ -188,7 +190,7 @@ Popup 或右键菜单发起翻译时先向当前 Tab 发送 `PING`。如果没�
 ### 5.2 右键快捷翻译
 
 - 扩展安装或更新时移除旧的整页与选区菜单，只创建一个固定 ID 的快捷入口；
-- 菜单标题为“DomLingo：AI 翻译”，使用 `all` 上下文，只显示在普通 HTTP/HTTPS 文档；具体模式与操作步骤放在 README 图文说明中；
+- 菜单标题为“DomLingo：AI 翻译”，使用 `all` 上下文，支持 HTTP/HTTPS 文档和本地 PDF；具体模式与操作步骤放在 README 图文说明中；
 - Chrome 会将同一扩展同时可见的多项菜单自动折叠，因此不同时创建两个模式入口，也不添加停止、重试或恢复子菜单；参见 [Chrome contextMenus 文档](https://developer.chrome.com/docs/extensions/reference/api/contextMenus)；
 - `onClicked` 中非空 `selectionText` 走 `START_SELECTION_TRANSLATION`，不存在或为空字符串时走 `START_TRANSLATION`；仅空白字符的选区、可编辑控件和子 frame 选区不降级为全文翻译；
 - 两种模式都复用现有配置校验、权限检查、Content Script 注入和会话启动流程；
@@ -712,6 +714,24 @@ MVP 不主动穿透：
 
 开放 Shadow DOM 可以在后续版本按同样的节点扫描协议接入。
 
+### 15.4 PDF 选区与阅读页
+
+原生 PDF 的右键操作直接使用 `OnClickData.selectionText`，不丢弃浏览器提供的文字，不重新下载或打开源文件。Chrome 原生 PDF frame 的选区不受网页主 frame 限制。HTML 仍使用原位替换流程。仅当用户主动选择独立框选阅读器时才创建 `pdf.html` 标签页。
+
+`sidepanel.html` 使用 Chrome 116+ 的 Side Panel API 显示译文。后台按来源 tab 管理翻译会话，侧栏端口只接收当前窗口活动 tab 的状态，来源必须精确匹配可信扩展侧栏页面。停止和重试命令绑定 selection ID，避免旧操作取消新选区。原文和译文仅写入可信 `storage.session`，不进入本地持久化或同步存储；刷新、导航、关闭标签页清除。后台休眠后可恢复完成结果，中断请求仅在用户重试时重新发送。侧栏端口断开或切换 tab 时取消旧的未完成任务。
+
+侧栏断线时清理标签切换监听、消息监听和心跳，禁用停止与重试并保留已有译文。所有端口发送共享连接状态检查与异常处理，已排队的事件和异步初始化结果不得使用关闭的连接。
+
+原生选区和矩形选区共用 PDF 翻译分批逻辑：每次请求最多 4,000 个原文字符，整段优先，只有超长段落按完整句子分批。PDF 的单行折行不作为句界，缩写和小数不应被切断。发送前检查所有分批，无法在限制内保持单句完整时不发出请求；请求依次执行并按原段落关系合并译文，不重复发送上下文，不丢弃后续内容。
+
+PDF 不向浏览器原生阅读器注入脚本。`pdf.html` 使用随扩展打包的 PDF.js、Worker、字体和 CMap，在本地渲染当前页；不加载远程脚本，不执行 PDF 内的脚本或交互表单。
+
+在线来源仅接受 HTTPS 或本机 HTTP，打开时申请精确域名权限。请求不携带账号凭据，响应大小限制为 50 MB，并验证 PDF 文件头；登录页面、密码保护或无效文件显示错误。本地文件通过文件选择器读取。
+
+矩形坐标与 PDF.js 的文字层对应，逐字符检查实际渲染边界，只有中心位于选区内的字符进入翻译请求。复用 `TRANSLATE_BATCH` 与后台模型调用，密钥不进入 PDF 内容或页面文本；所有块上下文也只来自选区。
+
+译文以纯文本渲染，原始 Canvas 和文字层不变。定位算法只接受完全位于阅读视口内且不与选区重叠的位置，否则在文档视口外提供独立面板。每次选择使用独立 session；停止、关闭、翻页、缩放、换文件和卸载阅读页时取消旧任务，前端同时丢弃迟到结果。
+
 ## 16. 消息协议
 
 所有消息使用带版本和判别字段的 TypeScript 联合类型，并在运行时校验来自 Content Script 的数据。
@@ -1047,4 +1067,4 @@ interface SafeLogEvent {
 - 本地模型自动发现；
 - 可选双语模式。
 
-这些能力不应阻塞 MVP，也不能改变“无账号、无中转、纯网页正文翻译”的产品定位。
+这些能力不应阻塞 MVP，也不能改变“无账号、无中转、用户主动选择内容翻译”的产品定位。

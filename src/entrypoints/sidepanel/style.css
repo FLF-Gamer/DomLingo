@@ -1,0 +1,144 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #172a40;
+  background: #fff;
+  font-size: 13px;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  overflow: hidden;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+}
+button:focus-visible,
+summary:focus-visible,
+.translated-text:focus-visible {
+  outline: 2px solid #2367d1;
+  outline-offset: 3px;
+}
+.pdf-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding: 8px 10px;
+  min-width: 220px;
+  overflow: hidden;
+}
+.panel-header {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 26px;
+  margin-bottom: 6px;
+}
+h1 {
+  font-size: 14px;
+  margin: 0;
+}
+h2 {
+  font-size: 13px;
+  margin: 0;
+}
+.empty-state p {
+  font-size: 12px;
+  color: #5c6e83;
+  line-height: 1.6;
+  margin: 0;
+}
+.source-text {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 6px;
+}
+.source-text summary {
+  cursor: pointer;
+  color: #5c6e83;
+}
+.source-text p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 4px 0 0;
+  max-height: min(160px, 25dvh);
+  overflow: auto;
+  line-height: 1.6;
+}
+.empty-state {
+  padding: 6px 0;
+  overflow: auto;
+}
+.translation {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.translation-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.phase {
+  flex-shrink: 0;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #5c6e83;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.phase--error {
+  color: #ad3d32;
+}
+.translated-text {
+  flex: 1;
+  min-height: 0;
+  margin: 6px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  font-size: 13px;
+}
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.panel-actions button {
+  border: 1px solid #c9d7e8;
+  background: #f6f9fd;
+  color: #284e7a;
+  border-radius: 5px;
+  padding: 4px 8px;
+  min-height: 26px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.panel-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.panel-notice {
+  flex-shrink: 0;
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.panel-header button {
+  margin-left: auto;
+  padding: 4px 0 4px 6px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: #2367a9;
+  font-size: 12px;
+}

@@ -69,13 +69,20 @@ export interface GetTabStatusMessage {
   tabId: number;
 }
 
+export interface OpenPdfReaderMessage {
+  version: 1;
+  type: 'OPEN_PDF_READER';
+  tabId: number;
+}
+
 export type PopupControlMessage =
   | StartTranslationMessage
   | StartSelectionTranslationMessage
   | RetryFailedTranslationMessage
   | StopTranslationMessage
   | RestoreOriginalMessage
-  | GetTabStatusMessage;
+  | GetTabStatusMessage
+  | OpenPdfReaderMessage;
 
 export interface TranslateBatchMessage {
   version: 1;
@@ -154,6 +161,7 @@ export type TranslationControlResponse =
       status: PageTranslationStatus;
       providerLabel: string;
       model: string;
+      pageKind?: 'pdf';
     }
   | { ok: false; code: 'CONFIG_REQUIRED' | 'PAGE_UNAVAILABLE'; message: string };
 
@@ -195,6 +203,7 @@ export function isPopupControlMessage(value: unknown): value is PopupControlMess
       'STOP_TRANSLATION',
       'RESTORE_ORIGINAL',
       'GET_TAB_STATUS',
+      'OPEN_PDF_READER',
     ].includes(String(value.type)) &&
     typeof value.tabId === 'number' &&
     Number.isInteger(value.tabId) &&

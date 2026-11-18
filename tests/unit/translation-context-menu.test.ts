@@ -18,6 +18,7 @@ function setupContextMenu(
   startTranslation = vi.fn(async () => ({ ok: true })),
   openSettings = vi.fn(async () => undefined),
   startSelectionTranslation = vi.fn(async () => ({ ok: true })),
+  handlePdfContextMenu?: TranslationContextMenuDependencies['handlePdfContextMenu'],
 ) {
   let installedListener: InstalledListener | undefined;
   let clickedListener: ContextMenuClickListener | undefined;
@@ -42,6 +43,7 @@ function setupContextMenu(
     startTranslation,
     startSelectionTranslation,
     openSettings,
+    ...(handlePdfContextMenu ? { handlePdfContextMenu } : {}),
   });
 
   return {
@@ -77,7 +79,7 @@ describe('translation context menu', () => {
       id: TRANSLATE_MENU_ID,
       title: TRANSLATE_MENU_TITLE,
       contexts: ['all'],
-      documentUrlPatterns: ['http://*/*', 'https://*/*'],
+      documentUrlPatterns: ['http://*/*', 'https://*/*', 'file:///*'],
     });
   });
 
@@ -171,5 +173,35 @@ describe('translation context menu', () => {
 
     expect(contextMenu.startTranslation).not.toHaveBeenCalled();
     expect(contextMenu.startSelectionTranslation).not.toHaveBeenCalled();
+  });
+
+  it('passes the actual PDF selection and viewer frame to the PDF handler, not the web translator', async () => {
+    const handlePdfContextMenu = vi.fn(async () => true);
+    const contextMenu = setupContextMenu(undefined, undefined, undefined, handlePdfContextMenu);
+    contextMenu.click(TRANSLATE_MENU_ID, 42, {
+      selectionText: 'Only the selected PDF sentence.',
+      frameId: 8,
+      pageUrl: 'file:///documents/sample.pdf',
+    });
+    await vi.waitFor(() =>
+      expect(handlePdfContextMenu).toHaveBeenCalledWith(
+        expect.objectContaining({ selectionText: 'Only the selected PDF sentence.', frameId: 8 }),
+        expect.objectContaining({ id: 42 }),
+      ),
+    );
+    expect(contextMenu.startTranslation).not.toHaveBeenCalled();
+    expect(contextMenu.startSelectionTranslation).not.toHaveBeenCalled();
+  });
+
+  it('keeps the HTML selection flow when the PDF handler declines the document', async () => {
+    const contextMenu = setupContextMenu(
+      undefined,
+      undefined,
+      undefined,
+      vi.fn(async () => false),
+    );
+    contextMenu.click(TRANSLATE_MENU_ID, 42, { selectionText: 'HTML sentence.' });
+    await vi.waitFor(() => expect(contextMenu.startSelectionTranslation).toHaveBeenCalledWith(42));
+    expect(contextMenu.startTranslation).not.toHaveBeenCalled();
   });
 });
