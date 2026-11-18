@@ -13,6 +13,10 @@ export interface TranslationContextMenuDependencies {
   startTranslation(tabId: number): Promise<ContextMenuTranslationResult>;
   startSelectionTranslation(tabId: number): Promise<ContextMenuTranslationResult>;
   openSettings(): Promise<void>;
+  handlePdfContextMenu?(
+    info: chrome.contextMenus.OnClickData,
+    tab: chrome.tabs.Tab,
+  ): Promise<boolean>;
 }
 
 export function registerTranslationContextMenu({
@@ -21,6 +25,7 @@ export function registerTranslationContextMenu({
   startTranslation,
   startSelectionTranslation,
   openSettings,
+  handlePdfContextMenu,
 }: TranslationContextMenuDependencies): void {
   const recreateMenu = async (): Promise<void> => {
     await Promise.all(
@@ -32,7 +37,7 @@ export function registerTranslationContextMenu({
       id: TRANSLATE_MENU_ID,
       title: TRANSLATE_MENU_TITLE,
       contexts: ['all'],
-      documentUrlPatterns: ['http://*/*', 'https://*/*'],
+      documentUrlPatterns: ['http://*/*', 'https://*/*', 'file:///*'],
     });
   };
 
@@ -42,20 +47,33 @@ export function registerTranslationContextMenu({
 
   contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== TRANSLATE_MENU_ID || tab?.id === undefined) return;
+    if (info.selectionText && (info.editable || !info.selectionText.trim())) return;
+    const tabId = tab.id;
 
-    let translation: Promise<ContextMenuTranslationResult>;
-    if (info.selectionText) {
-      if (info.editable || !info.selectionText.trim() || (info.frameId ?? 0) !== 0) return;
-      translation = startSelectionTranslation(tab.id);
+    const translateWebPage = () => {
+      let translation: Promise<ContextMenuTranslationResult>;
+      if (info.selectionText) {
+        if (info.editable || !info.selectionText.trim() || (info.frameId ?? 0) !== 0) return;
+        translation = startSelectionTranslation(tabId);
+      } else {
+        translation = startTranslation(tabId);
+      }
+
+      void translation
+        .then((response) => {
+          if (!response.ok && response.code === 'CONFIG_REQUIRED') return openSettings();
+          return undefined;
+        })
+        .catch(() => undefined);
+    };
+    if (handlePdfContextMenu) {
+      void handlePdfContextMenu(info, tab)
+        .then((handled) => {
+          if (!handled) translateWebPage();
+        })
+        .catch(translateWebPage);
     } else {
-      translation = startTranslation(tab.id);
+      translateWebPage();
     }
-
-    void translation
-      .then((response) => {
-        if (!response.ok && response.code === 'CONFIG_REQUIRED') return openSettings();
-        return undefined;
-      })
-      .catch(() => undefined);
   });
 }

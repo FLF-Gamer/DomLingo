@@ -7,6 +7,7 @@
 - `page-context-menu.png`：真实 Chrome 的整页翻译右键菜单，未选中文字，高亮 DomLingo 菜单项。
 - `selection-context-menu.png`：真实 Chrome 的选区翻译右键菜单，保留英文段落的选区高亮，同时高亮 DomLingo 菜单项。
 - `page-translation.png` 和 `selection-translation.png`：实际打包后的 Content Script 在本地示例页中运行的结果；模型响应为固定测试数据，没有调用真实模型。
+- `pdf-region-translation.png`：实际 PDF 框选阅读器的界面，使用项目内的示例 PDF 与固定演示译文；不包含个人文件、账号或浏览器界面。
 
 ## 官网演示动图
 

@@ -17,7 +17,13 @@ test('extension features use narrow Chrome permissions', () => {
     permissions?: string[];
   };
 
-  expect(manifest.permissions).toEqual(['activeTab', 'contextMenus', 'scripting', 'storage']);
+  expect(manifest.permissions).toEqual([
+    'activeTab',
+    'contextMenus',
+    'scripting',
+    'storage',
+    'sidePanel',
+  ]);
   expect(manifest.permissions).not.toContain('tabs');
   expect(manifest.permissions).not.toContain('webNavigation');
 });

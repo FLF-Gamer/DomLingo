@@ -1,0 +1,413 @@
+:root {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: #172033;
+  background: #e9ecf2;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button,
+.button,
+select {
+  border: 1px solid #d9deea;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  padding: 8px 12px;
+}
+button,
+.button {
+  cursor: pointer;
+}
+button:hover,
+.button:hover {
+  background: #f1f3ff;
+  border-color: #a5a1ef;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.button:focus-visible {
+  outline: 3px solid #aaa5ff;
+  outline-offset: 2px;
+}
+.pdf-app {
+  height: 100dvh;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+.reader-header {
+  padding: 14px 24px;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #e2e5ee;
+}
+.reader-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.reader-brand strong {
+  display: block;
+  font-size: 16px;
+}
+.reader-brand span {
+  display: block;
+  font-size: 11px;
+  color: #7b8497;
+  margin-top: 2px;
+}
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.file-actions:has(.file-input:focus-visible) label {
+  outline: 3px solid #aaa5ff;
+}
+.reader-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px;
+  background: #f8f9fc;
+  border-bottom: 1px solid #dce1eb;
+  min-height: 54px;
+  font-size: 13px;
+}
+.document-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.page-controls label {
+  white-space: nowrap;
+}
+.page-controls input {
+  width: 52px;
+  border: 1px solid #d9deea;
+  border-radius: 6px;
+  padding: 5px;
+  background: #fff;
+  color: inherit;
+}
+.reader-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.reader-scroll {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  padding: 24px;
+  position: relative;
+}
+.pdf-page {
+  position: relative;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 3px 18px #1720331f;
+  flex-shrink: 0;
+}
+.pdf-page canvas {
+  display: block;
+}
+.region-picker {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.selected-region {
+  position: absolute;
+  border: 2px solid #4f46e5;
+  background: #6366f124;
+  pointer-events: none;
+}
+.page-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  color: #667085;
+  background: #ffffffbb;
+}
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  transform-origin: 0 0;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  transform-origin: 0 0;
+}
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.textLayer .markedContent {
+  display: contents;
+}
+.translation-card {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #c9c5f7;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 36px #17203326;
+  overflow: hidden;
+}
+.translation-card--docked {
+  position: relative;
+  flex: 0 0 min(260px, 32vh);
+  width: auto;
+  margin: 0 8px 6px;
+  box-shadow: 0 -3px 18px #1720330d;
+}
+.translation-card header {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #eeedf7;
+}
+.translation-card header > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.translation-card header strong {
+  display: block;
+  font-size: 12px;
+}
+.translation-card header span {
+  display: block;
+  font-size: 11px;
+  color: #7b8497;
+}
+.translation-card header button {
+  padding: 0 6px;
+  font-size: 18px;
+  border: 0;
+}
+.translation-content {
+  padding: 8px 10px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.translation-content p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.translation-content p + p {
+  margin-top: 10px;
+}
+.translation-error {
+  color: #b42318;
+}
+.muted {
+  color: #7b8497;
+}
+.translation-card footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid #eeedf7;
+  font-size: 12px;
+}
+.translation-card footer button {
+  padding: 4px 8px;
+  min-height: 26px;
+}
+.reader-hint {
+  padding: 8px 16px;
+  background: #f8f9fc;
+  text-align: center;
+  color: #667085;
+  font-size: 12px;
+  border-top: 1px solid #dce1eb;
+}
+.empty-reader {
+  max-width: 600px;
+  margin: clamp(16px, 7vh, 80px) auto;
+  padding: 36px;
+  background: #fff;
+  border: 1px solid #e2e5ee;
+  border-radius: 18px;
+  box-shadow: 0 8px 30px #17203308;
+}
+.pdf-symbol {
+  width: 56px;
+  padding: 20px 0;
+  text-align: center;
+  color: #4f46e5;
+  background: #eeecff;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.empty-reader h1 {
+  font-size: 23px;
+  margin: 24px 0 10px;
+}
+.empty-reader p {
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.empty-reader form {
+  margin-top: 28px;
+}
+.empty-reader label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.source-input {
+  display: flex;
+  gap: 8px;
+}
+.source-input input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d9deea;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+}
+.source-input button {
+  flex-shrink: 0;
+}
+.primary {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: white;
+}
+.primary:hover {
+  background: #4338ca;
+}
+.empty-reader .file-hint {
+  font-size: 12px;
+}
+.reader-error {
+  background: #fff1ef;
+  color: #b42318;
+  font-size: 13px;
+  padding: 10px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.reader-error button {
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  font-size: 20px;
+}
+@media (max-width: 600px) {
+  .reader-header {
+    padding: 12px;
+  }
+  .reader-brand span {
+    display: none;
+  }
+  .reader-brand strong {
+    font-size: 13px;
+  }
+  .reader-brand img {
+    width: 24px;
+    height: 24px;
+  }
+  .file-actions {
+    font-size: 12px;
+  }
+  .reader-toolbar {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .document-name {
+    max-width: 100%;
+  }
+  .reader-scroll {
+    padding: 24px;
+  }
+  .empty-reader {
+    padding: 24px;
+    margin-top: 8px;
+  }
+  .source-input {
+    flex-direction: column;
+  }
+  .reader-hint {
+    font-size: 10px;
+  }
+}

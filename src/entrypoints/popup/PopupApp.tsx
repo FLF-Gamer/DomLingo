@@ -22,6 +22,7 @@ export function PopupApp() {
   const [provider, setProvider] = useState('模型配置');
   const [model, setModel] = useState('');
   const [busy, setBusy] = useState(false);
+  const [isPdf, setIsPdf] = useState(false);
 
   const openSettings = () => {
     void browser.runtime.openOptionsPage();
@@ -40,6 +41,7 @@ export function PopupApp() {
     setStatus(response.status);
     setProvider(response.providerLabel);
     setModel(response.model);
+    setIsPdf(response.pageKind === 'pdf');
   };
 
   const sendControl = async (type: PopupControlMessage['type'], targetTabId = tabId) => {
@@ -148,10 +150,25 @@ export function PopupApp() {
             className="primary-button"
             disabled={busy || tabId === undefined}
             onClick={() =>
-              void runAction(hasFailures ? 'RETRY_FAILED_TRANSLATION' : 'START_TRANSLATION')
+              isPdf && tabId !== undefined
+                ? void chrome.sidePanel
+                    .open({ tabId })
+                    .then(() => window.close())
+                    .catch(() => {
+                      setStatus({
+                        ...INITIAL_STATUS,
+                        state: 'error',
+                        message: '无法打开译文侧栏，请重新加载扩展。',
+                      });
+                    })
+                : void runAction(hasFailures ? 'RETRY_FAILED_TRANSLATION' : 'START_TRANSLATION')
             }
           >
-            {hasFailures ? `重试失败内容（${status.failed}）` : '翻译当前页面'}
+            {isPdf
+              ? '查看 PDF 译文'
+              : hasFailures
+                ? `重试失败内容（${status.failed}）`
+                : '翻译当前页面'}
           </button>
         )}
         <button
@@ -164,7 +181,18 @@ export function PopupApp() {
         </button>
       </div>
 
-      <p className="selection-hint">右键“AI 翻译”：有选中文字时只翻译选区，未选中时翻译整页。</p>
+      {!isPdf && (
+        <p className="selection-hint">右键“AI 翻译”：有选中文字时只翻译选区，未选中时翻译整页。</p>
+      )}
+
+      <button
+        type="button"
+        className="secondary-button"
+        disabled={busy || tabId === undefined}
+        onClick={() => void runAction('OPEN_PDF_READER')}
+      >
+        打开 PDF 框选阅读器
+      </button>
 
       <button type="button" className="settings-button" onClick={openSettings}>
         打开设置

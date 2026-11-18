@@ -7,6 +7,22 @@ interfaces and stored data formats may still change.
 
 ## [Unreleased]
 
+### Added
+
+- Translate text selected in Chrome's existing PDF viewer directly from the context menu. Results appear in the browser side panel without reopening the PDF, requesting its URL, or covering the original. Selections are isolated by tab and cleared on navigation or close.
+- PDF region translation in a dedicated reader: open a local or HTTPS PDF, draw a rectangle, and read its translation beside the selected original. When space is limited, results use a separate panel below the document.
+- PDF page navigation, zoom, cancellation, retry, and translation copying. Only selected text is sent to the configured model; the source PDF remains unchanged. Scanned PDFs and OCR are not supported.
+
+### Changed
+
+- PDF selections use requests of at most 4,000 source characters, keeping paragraphs together where possible and splitting oversized paragraphs only between complete sentences. Longer selections continue across multiple requests; a single oversized sentence is rejected without truncation.
+- Compact PDF translation panels use smaller text and keep controls above the scrolling translation.
+
+### Fixed
+
+- PDF translations no longer split words or insert artificial paragraph breaks between sentence batches.
+- Disconnected PDF side panels stop their tab listeners and heartbeat, retain completed translations, and safely reject further commands without throwing a disconnected-port error.
+
 ## [0.1.0-alpha.1] - 2026-10-27
 
 ### Added

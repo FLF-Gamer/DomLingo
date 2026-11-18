@@ -13,6 +13,9 @@ import {
 import { SessionRequestRegistry } from '../background/session-request-registry';
 import { registerTabLifecycleCancellation } from '../background/tab-lifecycle';
 import { registerTranslationContextMenu } from '../background/translation-context-menu';
+import { detectPdfInContextMenu, detectPdfSource, openPdfReader } from '../background/pdf-reader';
+import { routePdfContextMenu, PdfPanelSessions } from '../background/pdf-panel';
+import { isPdfPanelCommand, PDF_PANEL_PORT, PDF_SELECTION_HINT } from '../pdf/panel-protocol';
 import { validateProviderEndpoint } from '../providers/endpoint';
 import {
   detectOpenAICompatibleStructuredOutput,
@@ -29,6 +32,27 @@ import { retryProviderRequest } from '../translation/retry';
 const TRUSTED_CONTEXTS = { accessLevel: 'TRUSTED_CONTEXTS' } as const;
 const CONTENT_SCRIPT_FILE = 'domlingo-content.js';
 const requestRegistry = new SessionRequestRegistry();
+const pdfPanelPorts = new Map<chrome.runtime.Port, number>();
+const pdfPanels = new PdfPanelSessions({
+  storage: chrome.storage.session,
+  send: async (tabId, message) => {
+    if (message.type === 'CANCEL_SESSION') {
+      requestRegistry.cancelSession(message.sessionId, tabId);
+      return { ok: true };
+    }
+    return handleTranslateBatch(message, tabId);
+  },
+  publish: (tabId, state) => {
+    for (const [port, watchedTabId] of pdfPanelPorts) {
+      if (watchedTabId !== tabId) continue;
+      try {
+        port.postMessage({ tabId, state });
+      } catch {
+        pdfPanelPorts.delete(port);
+      }
+    }
+  },
+});
 
 const IDLE_PAGE_STATUS: PageTranslationStatus = {
   state: 'idle',
@@ -104,12 +128,55 @@ async function handlePopupControl(
 ): Promise<TranslationControlResponse> {
   const settings = await loadSyncedSettings();
   const preset = getProviderPreset(settings.providerId);
-  const success = (status: PageTranslationStatus): TranslationControlResponse => ({
+  const success = (
+    status: PageTranslationStatus,
+  ): Extract<TranslationControlResponse, { ok: true }> => ({
     ok: true,
     status,
     providerLabel: preset.label,
     model: settings.model,
   });
+
+  if (message.type === 'OPEN_PDF_READER') {
+    try {
+      await openPdfReader(message.tabId);
+      return success({
+        ...IDLE_PAGE_STATUS,
+        message: '已打开 PDF 阅读页，请打开文件并框选需要翻译的文字。',
+      });
+    } catch {
+      return {
+        ok: false,
+        code: 'PAGE_UNAVAILABLE',
+        message: '无法打开 PDF 阅读页，请重新加载扩展后再试。',
+      };
+    }
+  }
+
+  if (
+    message.type === 'START_TRANSLATION' ||
+    message.type === 'START_SELECTION_TRANSLATION' ||
+    message.type === 'GET_TAB_STATUS'
+  ) {
+    try {
+      const pdfState = await pdfPanels.get(message.tabId);
+      if (pdfState || (await detectPdfSource(message.tabId))) {
+        return {
+          ...success({
+            ...IDLE_PAGE_STATUS,
+            message: pdfState?.phase === 'error' ? pdfState.message : PDF_SELECTION_HINT,
+          }),
+          pageKind: 'pdf',
+        };
+      }
+    } catch {
+      return {
+        ok: false,
+        code: 'PAGE_UNAVAILABLE',
+        message: '无法读取当前标签页，请重新打开插件。',
+      };
+    }
+  }
 
   if (message.type === 'GET_TAB_STATUS') {
     return success((await getContentStatus(message.tabId)) ?? IDLE_PAGE_STATUS);
@@ -192,6 +259,15 @@ async function handleTranslateBatch(
     }
 
     const apiKey = await getApiKey(settings.providerId);
+    const preset = getProviderPreset(settings.providerId);
+    if (preset.apiKeyRequired && !apiKey)
+      return { ok: false, code: 'INVALID_REQUEST', message: '请先在模型设置中保存 API Key。' };
+    if (!(await chrome.permissions.contains({ origins: [endpoint.permissionPattern] })))
+      return {
+        ok: false,
+        code: 'INVALID_REQUEST',
+        message: '模型 API 域名尚未授权，请在模型设置中测试连接并保存。',
+      };
     const config = {
       providerId: settings.providerId,
       endpoint: endpoint.endpoint,
@@ -236,6 +312,41 @@ export default defineBackground(() => {
 
   registerTabLifecycleCancellation(chrome.tabs, (tabId) => {
     requestRegistry.cancelTab(tabId);
+    pdfPanels.clear(tabId);
+  });
+
+  chrome.runtime.onConnect.addListener((port) => {
+    const isPanel =
+      port.name === PDF_PANEL_PORT &&
+      port.sender?.id === chrome.runtime.id &&
+      port.sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL('sidepanel.html');
+    if (!isPanel) return;
+    const unwatch = () => {
+      const tabId = pdfPanelPorts.get(port);
+      pdfPanelPorts.delete(port);
+      if (tabId !== undefined && ![...pdfPanelPorts.values()].includes(tabId))
+        pdfPanels.stop(tabId);
+    };
+    port.onDisconnect.addListener(unwatch);
+    port.onMessage.addListener((message: unknown) => {
+      if (!isPdfPanelCommand(message)) return;
+      if (message.type === 'WATCH') {
+        if (pdfPanelPorts.get(port) !== message.tabId) unwatch();
+        const tabId = message.tabId;
+        pdfPanelPorts.set(port, tabId);
+        void pdfPanels
+          .get(tabId)
+          .then((state) => {
+            if (pdfPanelPorts.get(port) === tabId) port.postMessage({ tabId, state });
+          })
+          .catch(() => undefined);
+        return;
+      }
+      const tabId = pdfPanelPorts.get(port);
+      if (tabId === undefined) return;
+      if (message.type === 'STOP') pdfPanels.stop(tabId, message.selectionId);
+      if (message.type === 'RETRY') pdfPanels.retry(tabId, message.selectionId);
+    });
   });
 
   registerTranslationContextMenu({
@@ -246,6 +357,12 @@ export default defineBackground(() => {
     startSelectionTranslation: (tabId) =>
       handlePopupControl({ version: 1, type: 'START_SELECTION_TRANSLATION', tabId }),
     openSettings: () => chrome.runtime.openOptionsPage(),
+    handlePdfContextMenu: (info, tab) =>
+      routePdfContextMenu(info, tab, {
+        detect: detectPdfInContextMenu,
+        open: (options) => chrome.sidePanel.open(options),
+        sessions: pdfPanels,
+      }),
   });
 
   chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
