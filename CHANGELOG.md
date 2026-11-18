@@ -7,6 +7,8 @@ interfaces and stored data formats may still change.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-11-18
+
 ### Added
 
 - Translate text selected in Chrome's existing PDF viewer directly from the context menu. Results appear in the browser side panel without reopening the PDF, requesting its URL, or covering the original. Selections are isolated by tab and cleared on navigation or close.
@@ -70,6 +72,7 @@ interfaces and stored data formats may still change.
 - Automatic request cancellation on tab close, reload, cross-document navigation, pagehide, and SPA route invalidation without adding broad tab permissions.
 - Time-sliced main-content scoring and source collection with 5,000-node responsiveness regression coverage.
 
-[Unreleased]: https://github.com/FLF-Gamer/DomLingo/compare/v0.1.0-alpha.1...HEAD
+[Unreleased]: https://github.com/FLF-Gamer/DomLingo/compare/v0.1.0-alpha.2...HEAD
+[0.1.0-alpha.2]: https://github.com/FLF-Gamer/DomLingo/releases/tag/v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/FLF-Gamer/DomLingo/releases/tag/v0.1.0-alpha.1
 [0.1.0-alpha.0]: https://github.com/FLF-Gamer/DomLingo/releases/tag/v0.1.0-alpha.0

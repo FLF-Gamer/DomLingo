@@ -31,7 +31,7 @@ DomLingo 是一个 Chrome 网页翻译扩展。它使用你自己的大模型 AP
 - 并行翻译独立语义块，完成的段落立即原位显示，不被较慢的前置批次阻塞；
 - 右键只保留一个“DomLingo：AI 翻译”入口，点击一次即可开始；
 - 支持先选中一句话或几段正文再右键翻译，只发送并替换选中的文字；
-- 源码构建版本支持在当前 PDF 中选中文字并右键翻译，译文显示在浏览器侧栏，不覆盖原文；
+- 支持在当前 PDF 中选中文字并右键翻译，译文显示在浏览器侧栏，不覆盖原文；
 - 支持停止翻译、重试失败内容和精确恢复原文；
 - 关闭插件弹窗后继续翻译，刷新、关闭标签页或同标签页导航时停止旧会话；
 - API Key 使用本机设备密钥加密保存，模型 API 域名按需授权。
@@ -40,9 +40,9 @@ DomLingo 是一个 Chrome 网页翻译扩展。它使用你自己的大模型 AP
 
 ### GitHub Releases
 
-当前开发者预览版为 [v0.1.0-alpha.1](https://github.com/FLF-Gamer/DomLingo/releases/tag/v0.1.0-alpha.1)，包含选区翻译、并行即时显示和新版图标。
+当前开发者预览版为 [v0.1.0-alpha.2](https://github.com/FLF-Gamer/DomLingo/releases/tag/v0.1.0-alpha.2)，包含网页整页与选区翻译、PDF 选区翻译和独立 PDF 框选阅读器。
 
-下载 [domlingo-chrome-unpacked-0.1.0-alpha.1.zip](https://github.com/FLF-Gamer/DomLingo/releases/download/v0.1.0-alpha.1/domlingo-chrome-unpacked-0.1.0-alpha.1.zip)，或在 [GitHub Releases](https://github.com/FLF-Gamer/DomLingo/releases) 中查看其他版本：
+下载 [domlingo-chrome-unpacked-0.1.0-alpha.2.zip](https://github.com/FLF-Gamer/DomLingo/releases/download/v0.1.0-alpha.2/domlingo-chrome-unpacked-0.1.0-alpha.2.zip)，或在 [GitHub Releases](https://github.com/FLF-Gamer/DomLingo/releases) 中查看其他版本：
 
 1. 解压下载的 ZIP；
 2. 打开 `chrome://extensions`；
@@ -160,7 +160,7 @@ DomLingo 有两种翻译模式，共用同一个右键入口：**整页翻译**�
 
 ## PDF 选区翻译
 
-此功能目前在源码构建版本中提供，已发布的 `v0.1.0-alpha.1` 下载包尚不包含。
+从 `v0.1.0-alpha.2` 起支持 PDF 选区翻译。
 
 在 Chrome 自带的 PDF 阅读器中直接使用（Chrome 116 或更新版本）：
 
